@@ -1,0 +1,51 @@
+package hook
+
+import (
+	"condenser/internal/csm"
+	"condenser/internal/env"
+	"fmt"
+)
+
+func NewHookService() *HookService {
+	return &HookService{
+		csmHandler: csm.NewCsmManager(csm.NewCsmStore(env.CsmStorePath)),
+	}
+}
+
+type HookService struct {
+	csmHandler csm.CsmHandler
+}
+
+func (s *HookService) UpdateCsm(stateParameter ServiceStateModel, eventType string) error {
+	// switch eventType
+	switch eventType {
+	case "createRuntime":
+		// create csm
+		if err := s.csmHandler.StoreContainer(stateParameter.Id, stateParameter.Status, stateParameter.Pid); err != nil {
+			return fmt.Errorf("csm create failed: %w", err)
+		}
+	case "createContainer":
+		// update csm
+		if err := s.csmHandler.UpdateContainer(stateParameter.Id, stateParameter.Status, stateParameter.Pid); err != nil {
+			return fmt.Errorf("csm update failed: %w", err)
+		}
+	case "poststart":
+		// update csm
+		if err := s.csmHandler.UpdateContainer(stateParameter.Id, stateParameter.Status, stateParameter.Pid); err != nil {
+			return fmt.Errorf("csm update failed: %w", err)
+		}
+	case "stopContainer":
+		// update csm
+		if err := s.csmHandler.UpdateContainer(stateParameter.Id, stateParameter.Status, stateParameter.Pid); err != nil {
+			return fmt.Errorf("csm update failed: %w", err)
+		}
+	case "poststop":
+		// remove csm
+		if err := s.csmHandler.RemoveContainer(stateParameter.Id); err != nil {
+			return fmt.Errorf("csm remove failed: %w", err)
+		}
+	default:
+		return fmt.Errorf("csm unknown eventType: %s", eventType)
+	}
+	return nil
+}

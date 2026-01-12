@@ -1,0 +1,15 @@
+package env
+
+const (
+	RootDir          = "/etc/raind"
+	ContainerRootDir = "/etc/raind/container"
+	ImageRootDir     = "/etc/raind/image"
+	LayerRootDir     = "/etc/raind/image/layers"
+
+	StoreDir      = "/etc/raind/store"
+	IpamStorePath = "/etc/raind/store/ipam.json"
+	CsmStorePath  = "/etc/raind/store/csm.json"
+
+	CgroupRuntimeDir         = "/sys/fs/cgroup/raind"
+	CgroupSubtreeControlPath = "/sys/fs/cgroup/raind/cgroup.subtree_control"
+)
