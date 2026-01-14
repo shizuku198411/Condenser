@@ -6,12 +6,14 @@ import (
 	"condenser/internal/env"
 	"condenser/internal/runtime"
 	"condenser/internal/runtime/droplet"
+	"condenser/internal/store/csm"
 	"condenser/internal/store/ilm"
 	"condenser/internal/store/ipam"
 	"condenser/internal/utils"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -20,24 +22,28 @@ import (
 
 func NewContaierService() *ContainerService {
 	return &ContainerService{
-		filesystemHandler:     utils.NewFilesystemExecutor(),
-		commandFactory:        utils.NewCommandFactory(),
-		runtimeHandler:        droplet.NewDropletHandler(),
-		ipamStoreHandler:      ipam.NewIpamStore(env.IpamStorePath),
-		ipamHandler:           ipam.NewIpamManager(ipam.NewIpamStore(env.IpamStorePath)),
-		ilmStoreHandler:       ilm.NewIlmStore(env.IlmStorePath),
+		filesystemHandler: utils.NewFilesystemExecutor(),
+		commandFactory:    utils.NewCommandFactory(),
+		runtimeHandler:    droplet.NewDropletHandler(),
+
+		ipamHandler: ipam.NewIpamManager(ipam.NewIpamStore(env.IpamStorePath)),
+		ilmHandler:  ilm.NewIlmManager(ilm.NewIlmStore(env.IlmStorePath)),
+		csmHandler:  csm.NewCsmManager(csm.NewCsmStore(env.CsmStorePath)),
+
 		imageServiceHandler:   image.NewImageService(),
 		networkServiceHandler: network.NewNetworkService(),
 	}
 }
 
 type ContainerService struct {
-	filesystemHandler     utils.FilesystemHandler
-	commandFactory        utils.CommandFactory
-	runtimeHandler        runtime.RuntimeHandler
-	ipamStoreHandler      ipam.IpamStoreHandler
-	ipamHandler           ipam.IpamHandler
-	ilmStoreHandler       ilm.IlmStoreHandler
+	filesystemHandler utils.FilesystemHandler
+	commandFactory    utils.CommandFactory
+	runtimeHandler    runtime.RuntimeHandler
+
+	ipamHandler ipam.IpamHandler
+	ilmHandler  ilm.IlmHandler
+	csmHandler  csm.CsmHandler
+
 	imageServiceHandler   image.ImageServiceHandler
 	networkServiceHandler network.NetworkServiceHandler
 }
@@ -47,32 +53,61 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (string, e
 	// 1. generate container id
 	containerId := utils.NewUlid()
 
-	// 2. setup container directory
+	// 2. check if the requested image exist
+	imageRepo, imageRef, err := s.parseImageRef(createParameter.Image)
+	if err != nil {
+		return "", err
+	}
+	// 3. if the image not exist in local, pull image
+
+	// 4. load image config file
+	imageConfigPath, err := s.ilmHandler.GetConfigPath(imageRepo, imageRef)
+	if err != nil {
+		return "", err
+	}
+	imageConfig, err := s.imageServiceHandler.GetImageConfig(imageConfigPath)
+	if err != nil {
+		return "", err
+	}
+
+	// 5. create CSM entry with state=creating, pid=0, creatingAt=nil
+	//    command=if user specified, use it. if not, use image config's command
+	var command []string
+	if len(createParameter.Command) > 0 {
+		command = createParameter.Command
+	} else {
+		command = slices.Concat(imageConfig.Config.Entrypoint, imageConfig.Config.Cmd)
+	}
+	if err := s.csmHandler.StoreContainer(containerId, "creating", 0, imageRepo, imageRef, command); err != nil {
+		return "", err
+	}
+
+	// 6. setup container directory
 	if err := s.setupContainerDirectory(containerId); err != nil {
 		return "", fmt.Errorf("create container directory failed: %w", err)
 	}
 
-	// 3. setup etc files
+	// 7. setup etc files
 	if err := s.setupEtcFiles(containerId); err != nil {
 		return "", fmt.Errorf("setup etc files failed: %w", err)
 	}
 
-	// 4. setup cgroup subtree
+	// 8. setup cgroup subtree
 	if err := s.setupCgroupSubtree(containerId); err != nil {
 		return "", fmt.Errorf("setup cgroup subtree failed: %w", err)
 	}
 
-	// 5. create spec (config.json)
-	if err := s.createContainerSpec(containerId, createParameter); err != nil {
+	// 9. create spec (config.json)
+	if err := s.createContainerSpec(containerId, createParameter, imageRepo, imageRef, imageConfig); err != nil {
 		return "", fmt.Errorf("create spec failed: %w", err)
 	}
 
-	// 6. setup forward rule
+	// 10. setup forward rule
 	if err := s.setupForwardRule(containerId, createParameter.Port); err != nil {
 		return "", fmt.Errorf("forward rule failed: %w", err)
 	}
 
-	// 7. create container
+	// 11. create container
 	if err := s.createContainer(containerId); err != nil {
 		return "", fmt.Errorf("create container failed: %w", err)
 	}
@@ -133,21 +168,7 @@ func (s *ContainerService) setupCgroupSubtree(containerId string) error {
 	return nil
 }
 
-func (s *ContainerService) createContainerSpec(containerId string, createParameter ServiceCreateModel) error {
-	// read image config.json
-	// parse image
-	imageRepo, imageRef, err := s.parseImageRef(createParameter.Image)
-	if err != nil {
-		return err
-	}
-	imageConfigPath, err := s.ilmStoreHandler.GetConfigPath(imageRepo, imageRef)
-	if err != nil {
-		return err
-	}
-	imageConfig, err := s.imageServiceHandler.GetImageConfig(imageConfigPath)
-	if err != nil {
-		return err
-	}
+func (s *ContainerService) createContainerSpec(containerId string, createParameter ServiceCreateModel, imageRepo, imageRef string, imageConfig image.ImageConfigFile) error {
 
 	// spec parametr
 	// rootfs
@@ -180,7 +201,7 @@ func (s *ContainerService) createContainerSpec(containerId string, createParamet
 	mount := createParameter.Mount
 
 	// host interface
-	hostInterface, err := s.ipamStoreHandler.GetDefaultInterface()
+	hostInterface, err := s.ipamHandler.GetDefaultInterface()
 	if err != nil {
 		return err
 	}
@@ -203,7 +224,7 @@ func (s *ContainerService) createContainerSpec(containerId string, createParamet
 	// container dns
 	containerDns := []string{"8.8.8.8"}
 
-	imageLayer, err := s.ilmStoreHandler.GetRootfsPath(imageRepo, imageRef)
+	imageLayer, err := s.ilmHandler.GetRootfsPath(imageRepo, imageRef)
 	if err != nil {
 		return err
 	}
@@ -212,7 +233,7 @@ func (s *ContainerService) createContainerSpec(containerId string, createParamet
 	outputDir := filepath.Join(env.ContainerRootDir, containerId)
 
 	// hook
-	hookAddr, err := s.ipamStoreHandler.GetDefaultInterfaceAddr()
+	hookAddr, err := s.ipamHandler.GetDefaultInterfaceAddr()
 	if err != nil {
 		return err
 	}
@@ -385,7 +406,7 @@ func (s *ContainerService) setupForwardRule(containerId string, ports []string) 
 		// update ipam
 		iSport, _ := strconv.Atoi(sport)
 		iDport, _ := strconv.Atoi(dport)
-		if err := s.ipamStoreHandler.SetForwardInfo(containerId, iSport, iDport, protocol); err != nil {
+		if err := s.ipamHandler.SetForwardInfo(containerId, iSport, iDport, protocol); err != nil {
 			return err
 		}
 	}
@@ -464,7 +485,7 @@ func (s *ContainerService) deleteContainer(containerId string) error {
 
 func (s *ContainerService) cleanupForwardRules(containerId string) error {
 	// retrieve network info
-	forwards, err := s.ipamStoreHandler.GetForwardInfo(containerId)
+	forwards, err := s.ipamHandler.GetForwardInfo(containerId)
 	if err != nil {
 		return err
 	}

@@ -55,3 +55,42 @@ func (m *IlmManager) RemoveImage(repository string, reference string) error {
 		return nil
 	})
 }
+
+func (s *IlmManager) GetBundlePath(repository string, reference string) (string, error) {
+	var bundlePath string
+
+	err := s.ilmStore.withLock(func(st *ImageLayerState) error {
+		bundlePath = st.Repositories[repository].References[reference].BundlePath
+		if bundlePath == "" {
+			return fmt.Errorf("bundle path not found.")
+		}
+		return nil
+	})
+	return bundlePath, err
+}
+
+func (s *IlmManager) GetConfigPath(repository string, reference string) (string, error) {
+	var configPath string
+
+	err := s.ilmStore.withLock(func(st *ImageLayerState) error {
+		configPath = st.Repositories[repository].References[reference].ConfigPath
+		if configPath == "" {
+			return fmt.Errorf("config path not found.")
+		}
+		return nil
+	})
+	return configPath, err
+}
+
+func (s *IlmManager) GetRootfsPath(repository string, reference string) (string, error) {
+	var rootfsPath string
+
+	err := s.ilmStore.withLock(func(st *ImageLayerState) error {
+		rootfsPath = st.Repositories[repository].References[reference].RootfsPath
+		if rootfsPath == "" {
+			return fmt.Errorf("bundle path not found.")
+		}
+		return nil
+	})
+	return rootfsPath, err
+}

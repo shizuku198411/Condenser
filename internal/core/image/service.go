@@ -15,7 +15,6 @@ func NewImageService() *ImageService {
 	return &ImageService{
 		filesystemHandler: utils.NewFilesystemExecutor(),
 		registryHandler:   dockerhub.NewRegistryDockerHub(),
-		ilmStoreHandler:   ilm.NewIlmStore(env.IlmStorePath),
 		ilmHandler:        ilm.NewIlmManager(ilm.NewIlmStore(env.IlmStorePath)),
 	}
 }
@@ -23,7 +22,6 @@ func NewImageService() *ImageService {
 type ImageService struct {
 	filesystemHandler utils.FilesystemHandler
 	registryHandler   registry.RegistryHandler
-	ilmStoreHandler   ilm.IlmStoreHandler
 	ilmHandler        ilm.IlmHandler
 }
 
@@ -58,7 +56,7 @@ func (s *ImageService) Remove(removeParameter ServiceRemoveModel) error {
 	}
 
 	// remove directory
-	bundlePath, err := s.ilmStoreHandler.GetBundlePath(repo, ref)
+	bundlePath, err := s.ilmHandler.GetBundlePath(repo, ref)
 	if err != nil {
 		return err
 	}

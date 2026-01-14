@@ -15,12 +15,15 @@ type CsmManager struct {
 	csmStore *CsmStore
 }
 
-func (m *CsmManager) StoreContainer(containerId string, state string, pid int) error {
+func (m *CsmManager) StoreContainer(containerId string, state string, pid int, repo, ref string, command []string) error {
 	return m.csmStore.withLock(func(st *ContainerState) error {
 		st.Containers[containerId] = ContainerInfo{
 			ContainerId: containerId,
 			State:       state,
 			Pid:         pid,
+			Repository:  repo,
+			Reference:   ref,
+			Command:     command,
 			CreatedAt:   time.Now(),
 		}
 		return nil
@@ -47,6 +50,17 @@ func (m *CsmManager) UpdateContainer(containerId string, state string, pid int) 
 		}
 
 		c.State = state
+		switch state {
+		case "creating":
+			c.CreatingAt = time.Now()
+		case "created":
+			c.CreatedAt = time.Now()
+		case "running":
+			c.StartedAt = time.Now()
+		case "stopped":
+			c.StoppedAt = time.Now()
+		}
+
 		if pid >= 0 {
 			c.Pid = pid
 		}
