@@ -43,7 +43,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/container.ApiResponse"
+                            "$ref": "#/definitions/utils.ApiResponse"
                         }
                     }
                 }
@@ -69,7 +69,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/container.ApiResponse"
+                            "$ref": "#/definitions/utils.ApiResponse"
                         }
                     }
                 }
@@ -104,7 +104,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/container.ApiResponse"
+                            "$ref": "#/definitions/utils.ApiResponse"
                         }
                     }
                 }
@@ -139,7 +139,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/container.ApiResponse"
+                            "$ref": "#/definitions/utils.ApiResponse"
                         }
                     }
                 }
@@ -165,7 +165,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/container.ApiResponse"
+                            "$ref": "#/definitions/utils.ApiResponse"
                         }
                     }
                 }
@@ -182,7 +182,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/http.ApiResponse"
+                            "$ref": "#/definitions/utils.ApiResponse"
                         }
                     }
                 }
@@ -216,7 +216,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/image.ApiResponse"
+                            "$ref": "#/definitions/utils.ApiResponse"
                         }
                     }
                 }
@@ -245,10 +245,10 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/image.ApiResponse"
+                            "$ref": "#/definitions/utils.ApiResponse"
                         }
                     }
                 }
@@ -256,19 +256,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "container.ApiResponse": {
-            "type": "object",
-            "properties": {
-                "data": {},
-                "message": {
-                    "type": "string"
-                },
-                "status": {
-                    "description": "success | fail",
-                    "type": "string"
-                }
-            }
-        },
         "container.CreateContainerRequest": {
             "type": "object",
             "properties": {
@@ -278,9 +265,9 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "example": [
-                        "'/bin/sh'",
-                        "'-c'",
-                        "'echo hello; sleep 60'"
+                        "/bin/sh",
+                        "-c",
+                        "echo hello; sleep 60"
                     ]
                 },
                 "image": {
@@ -293,8 +280,8 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "example": [
-                        "'/host/dir:/container/dir'",
-                        "'/src:/dst'"
+                        "/host/dir:/container/dir",
+                        "/src:/dst"
                     ]
                 },
                 "port": {
@@ -303,8 +290,8 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "example": [
-                        "'8080:80'",
-                        "'4443:443'"
+                        "8080:80",
+                        "4443:443"
                     ]
                 }
             }
@@ -318,9 +305,9 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "example": [
-                        "'/bin/sh'",
-                        "'-c'",
-                        "'echo hello'"
+                        "/bin/sh",
+                        "-c",
+                        "echo hello"
                     ]
                 },
                 "interactive": {
@@ -335,32 +322,6 @@ const docTemplate = `{
                 "interactive": {
                     "type": "boolean",
                     "example": true
-                }
-            }
-        },
-        "http.ApiResponse": {
-            "type": "object",
-            "properties": {
-                "data": {},
-                "message": {
-                    "type": "string"
-                },
-                "status": {
-                    "description": "success | fail",
-                    "type": "string"
-                }
-            }
-        },
-        "image.ApiResponse": {
-            "type": "object",
-            "properties": {
-                "data": {},
-                "message": {
-                    "type": "string"
-                },
-                "status": {
-                    "description": "success | fail",
-                    "type": "string"
                 }
             }
         },
@@ -387,6 +348,19 @@ const docTemplate = `{
                 "image": {
                     "type": "string",
                     "example": "alpine:latest"
+                }
+            }
+        },
+        "utils.ApiResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "success | fail",
+                    "type": "string"
                 }
             }
         }
