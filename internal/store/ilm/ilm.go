@@ -112,3 +112,26 @@ func (s *IlmManager) GetImageList() ([]ImageInfo, error) {
 	})
 	return imageList, err
 }
+
+func (s *IlmManager) IsImageExist(imageRepo, imageRef string) bool {
+	var result bool
+
+	s.ilmStore.withLock(func(st *ImageLayerState) error {
+		for repo, refs := range st.Repositories {
+			if repo != imageRepo {
+				continue
+			}
+			for ref, _ := range refs.References {
+				if ref != imageRef {
+					continue
+				}
+				result = true
+				return nil
+			}
+		}
+		result = false
+		return nil
+	})
+
+	return result
+}

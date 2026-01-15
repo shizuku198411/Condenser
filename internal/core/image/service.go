@@ -26,12 +26,25 @@ type ImageService struct {
 }
 
 func (s *ImageService) Pull(pullParameter ServicePullModel) error {
+	targetOs := pullParameter.Os
+	if targetOs == "" {
+		targetOs = utils.HostOs()
+	}
+	targetArch := pullParameter.Arch
+	if targetArch == "" {
+		hostArch, err := utils.HostArch()
+		if err != nil {
+			return err
+		}
+		targetArch = hostArch
+	}
+
 	// pull image
 	repository, reference, bundlePath, configPath, rootfsPath, err := s.registryHandler.PullImage(
 		registry.RegistryPullModel{
 			Image: pullParameter.Image,
-			Os:    pullParameter.Os,
-			Arch:  pullParameter.Arch,
+			Os:    targetOs,
+			Arch:  targetArch,
 		},
 	)
 	if err != nil {

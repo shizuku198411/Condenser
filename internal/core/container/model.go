@@ -4,6 +4,8 @@ import "time"
 
 type ServiceCreateModel struct {
 	Image   string
+	Os      string
+	Arch    string
 	Command []string
 	Port    []string
 	Mount   []string

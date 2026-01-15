@@ -63,6 +63,11 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (string, e
 	}
 
 	// 3. if the image not exist in local, pull image
+	if !s.ilmHandler.IsImageExist(imageRepo, imageRef) {
+		if err := s.pullImage(createParameter.Image, createParameter.Os, createParameter.Arch); err != nil {
+			return "", err
+		}
+	}
 
 	// 4. load image config file
 	imageConfigPath, err := s.ilmHandler.GetConfigPath(imageRepo, imageRef)
@@ -188,6 +193,31 @@ func (s *ContainerService) rollback(rollbackFlag RollbackFlag, containerId strin
 		if err := s.cleanupForwardRules(containerId); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (s *ContainerService) pullImage(targetImage string, os string, arch string) error {
+	var (
+		targetOs   string
+		targetArch string
+	)
+	if os == "" {
+		targetOs = utils.HostOs()
+	}
+	if arch == "" {
+		hostArch, err := utils.HostArch()
+		if err != nil {
+			return err
+		}
+		targetArch = hostArch
+	}
+	if err := s.imageServiceHandler.Pull(image.ServicePullModel{
+		Image: targetImage,
+		Os:    targetOs,
+		Arch:  targetArch,
+	}); err != nil {
+		return err
 	}
 	return nil
 }

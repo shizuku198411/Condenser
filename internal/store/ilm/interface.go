@@ -11,4 +11,5 @@ type IlmHandler interface {
 	GetConfigPath(repository string, reference string) (string, error)
 	GetRootfsPath(repository string, reference string) (string, error)
 	GetImageList() ([]ImageInfo, error)
+	IsImageExist(imageRepo, imageRef string) bool
 }
