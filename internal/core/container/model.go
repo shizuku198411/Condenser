@@ -7,6 +7,7 @@ type ServiceCreateModel struct {
 	Command []string
 	Port    []string
 	Mount   []string
+	Network string
 }
 
 type ServiceStartModel struct {

@@ -11,6 +11,7 @@ type IpamHandler interface {
 	GetRuntimeSubnet() (string, error)
 	GetDefaultInterface() (string, error)
 	GetDefaultInterfaceAddr() (string, error)
+	GetBridgeAddr(bridgeInterface string) (string, error)
 	GetContainerAddress(containerId string) (string, string, string, error)
 	SetForwardInfo(containerId string, sport, dport int, protocol string) error
 	GetForwardInfo(containerId string) ([]ForwardInfo, error)

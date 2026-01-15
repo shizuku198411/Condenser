@@ -50,6 +50,9 @@ type ContainerService struct {
 
 // == service: create ==
 func (s *ContainerService) Create(createParameter ServiceCreateModel) (string, error) {
+	// RollbackFlag for handling rollback handling when process is not completed successfuly
+	var rollbackFlag RollbackFlag
+
 	// 1. generate container id
 	containerId := utils.NewUlid()
 
@@ -58,6 +61,7 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (string, e
 	if err != nil {
 		return "", err
 	}
+
 	// 3. if the image not exist in local, pull image
 
 	// 4. load image config file
@@ -70,7 +74,18 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (string, e
 		return "", err
 	}
 
-	// 5. create CSM entry with state=creating, pid=0, creatingAt=nil
+	// 5. allocate address
+	bridgeInterface := createParameter.Network
+	if bridgeInterface == "" {
+		bridgeInterface = "raind0"
+	}
+	containerGateway, containerAddr, err := s.allocateAddress(containerId, bridgeInterface)
+	if err != nil {
+		return "", err
+	}
+	rollbackFlag.AllocateAddr = true
+
+	// 6. create CSM entry with state=creating, pid=0, creatingAt=nil
 	//    command=if user specified, use it. if not, use image config's command
 	var command []string
 	if len(createParameter.Command) > 0 {
@@ -81,38 +96,100 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (string, e
 	if err := s.csmHandler.StoreContainer(containerId, "creating", 0, imageRepo, imageRef, command); err != nil {
 		return "", err
 	}
+	rollbackFlag.CSMEntry = true
 
-	// 6. setup container directory
+	// 7. setup container directory
 	if err := s.setupContainerDirectory(containerId); err != nil {
+		if err := s.rollback(rollbackFlag, containerId); err != nil {
+			return "", fmt.Errorf("rollback failed: %w", err)
+		}
 		return "", fmt.Errorf("create container directory failed: %w", err)
 	}
+	rollbackFlag.DirectoryEnv = true
 
-	// 7. setup etc files
+	// 8. setup etc files
 	if err := s.setupEtcFiles(containerId); err != nil {
+		if err := s.rollback(rollbackFlag, containerId); err != nil {
+			return "", fmt.Errorf("rollback failed: %w", err)
+		}
 		return "", fmt.Errorf("setup etc files failed: %w", err)
 	}
 
-	// 8. setup cgroup subtree
+	// 9. setup cgroup subtree
 	if err := s.setupCgroupSubtree(containerId); err != nil {
+		if err := s.rollback(rollbackFlag, containerId); err != nil {
+			return "", fmt.Errorf("rollback failed: %w", err)
+		}
 		return "", fmt.Errorf("setup cgroup subtree failed: %w", err)
 	}
+	rollbackFlag.CgroupEntry = true
 
-	// 9. create spec (config.json)
-	if err := s.createContainerSpec(containerId, createParameter, imageRepo, imageRef, imageConfig); err != nil {
+	// 10. create spec (config.json)
+	if err := s.createContainerSpec(
+		containerId, createParameter, imageRepo, imageRef, imageConfig,
+		bridgeInterface, containerAddr, containerGateway,
+	); err != nil {
+		if err := s.rollback(rollbackFlag, containerId); err != nil {
+			return "", fmt.Errorf("rollback failed: %w", err)
+		}
 		return "", fmt.Errorf("create spec failed: %w", err)
 	}
 
-	// 10. setup forward rule
+	// 11. setup forward rule
 	if err := s.setupForwardRule(containerId, createParameter.Port); err != nil {
+		if err := s.rollback(rollbackFlag, containerId); err != nil {
+			return "", fmt.Errorf("rollback failed: %w", err)
+		}
 		return "", fmt.Errorf("forward rule failed: %w", err)
 	}
+	rollbackFlag.ForwardRule = true
 
-	// 11. create container
+	// 12. create container
 	if err := s.createContainer(containerId); err != nil {
+		if err := s.rollback(rollbackFlag, containerId); err != nil {
+			return "", fmt.Errorf("rollback failed: %w", err)
+		}
 		return "", fmt.Errorf("create container failed: %w", err)
 	}
 
 	return containerId, nil
+}
+
+type RollbackFlag struct {
+	AllocateAddr bool
+	CSMEntry     bool
+	DirectoryEnv bool
+	CgroupEntry  bool
+	ForwardRule  bool
+}
+
+func (s *ContainerService) rollback(rollbackFlag RollbackFlag, containerId string) error {
+	if rollbackFlag.AllocateAddr {
+		if err := s.releaseAddress(containerId); err != nil {
+			return err
+		}
+	}
+	if rollbackFlag.CSMEntry {
+		if err := s.csmHandler.RemoveContainer(containerId); err != nil {
+			return err
+		}
+	}
+	if rollbackFlag.DirectoryEnv {
+		if err := s.deleteContainerDirectory(containerId); err != nil {
+			return err
+		}
+	}
+	if rollbackFlag.CgroupEntry {
+		if err := s.deleteCgroupSubtree(containerId); err != nil {
+			return err
+		}
+	}
+	if rollbackFlag.ForwardRule {
+		if err := s.cleanupForwardRules(containerId); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *ContainerService) setupContainerDirectory(containerId string) error {
@@ -168,7 +245,27 @@ func (s *ContainerService) setupCgroupSubtree(containerId string) error {
 	return nil
 }
 
-func (s *ContainerService) createContainerSpec(containerId string, createParameter ServiceCreateModel, imageRepo, imageRef string, imageConfig image.ImageConfigFile) error {
+func (s *ContainerService) allocateAddress(containerId string, bridgeInterface string) (string, string, error) {
+	containerInterfaceAddr, err := s.ipamHandler.Allocate(containerId, bridgeInterface)
+	if err != nil {
+		return "", "", err
+	}
+	containerInterfaceAddr = containerInterfaceAddr + "/24"
+	// container gateway
+	containerGateway, err := s.ipamHandler.GetBridgeAddr(bridgeInterface)
+	if err != nil {
+		return "", "", err
+	}
+	containerGateway = strings.Split(containerGateway, "/")[0]
+
+	return containerGateway, containerInterfaceAddr, nil
+}
+
+func (s *ContainerService) createContainerSpec(
+	containerId string, createParameter ServiceCreateModel,
+	imageRepo, imageRef string, imageConfig image.ImageConfigFile,
+	bridge, containerAddr, containerGateway string,
+) error {
 
 	// spec parametr
 	// rootfs
@@ -206,22 +303,8 @@ func (s *ContainerService) createContainerSpec(containerId string, createParamet
 		return err
 	}
 
-	// bridge interface
-	// TODO: network option for specifing subnet
-	bridgeInterface := "raind0"
-
 	// container interface
 	containerInterface := "eth0"
-	// container interface address
-	containerInterfaceAddr, err := s.ipamHandler.Allocate(containerId, bridgeInterface)
-	if err != nil {
-		return err
-	}
-	containerInterfaceAddr = containerInterfaceAddr + "/24"
-	// container gateway
-	// TODO: network option for specifing subnet
-	containerGateway := strings.Split("10.166.0.254/24", "/")[0]
-	// container dns
 	containerDns := []string{"8.8.8.8"}
 
 	imageLayer, err := s.ilmHandler.GetRootfsPath(imageRepo, imageRef)
@@ -293,9 +376,9 @@ func (s *ContainerService) createContainerSpec(containerId string, createParamet
 		Env:                    envs,
 		Mount:                  mount,
 		HostInterface:          hostInterface,
-		BridgeInterface:        bridgeInterface,
+		BridgeInterface:        bridge,
 		ContainerInterface:     containerInterface,
-		ContainerInterfaceAddr: containerInterfaceAddr,
+		ContainerInterfaceAddr: containerAddr,
 		ContainerGateway:       containerGateway,
 		ContainerDns:           containerDns,
 		ImageLayer:             []string{imageLayer},

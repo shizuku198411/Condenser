@@ -43,6 +43,7 @@ func (h *RequestHandler) CreateContainer(w http.ResponseWriter, r *http.Request)
 			Command: req.Command,
 			Port:    req.Port,
 			Mount:   req.Mount,
+			Network: req.Network,
 		},
 	)
 	if err != nil {

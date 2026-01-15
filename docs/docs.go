@@ -340,6 +340,10 @@ const docTemplate = `{
                         "/src:/dst"
                     ]
                 },
+                "network": {
+                    "type": "string",
+                    "example": "raind0"
+                },
                 "port": {
                     "type": "array",
                     "items": {

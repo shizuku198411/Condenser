@@ -19,6 +19,9 @@ definitions:
         items:
           type: string
         type: array
+      network:
+        example: raind0
+        type: string
       port:
         example:
         - 8080:80

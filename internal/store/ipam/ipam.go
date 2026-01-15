@@ -120,6 +120,22 @@ func (m *IpamManager) GetDefaultInterfaceAddr() (string, error) {
 	return defaultInterfaceAddr, err
 }
 
+func (m *IpamManager) GetBridgeAddr(bridgeInterface string) (string, error) {
+	var bridgeAddr string
+
+	err := m.ipamStore.withLock(func(st *IpamState) error {
+		for _, p := range st.Pools {
+			if p.Interface != bridgeInterface {
+				continue
+			}
+			bridgeAddr = p.Address
+			return nil
+		}
+		return fmt.Errorf("interface: %s not found", bridgeInterface)
+	})
+	return bridgeAddr, err
+}
+
 func (m *IpamManager) GetContainerAddress(containerId string) (string, string, string, error) {
 	var (
 		containerAddr   string
