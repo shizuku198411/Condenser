@@ -20,7 +20,7 @@ type ContainerMonitor struct {
 
 func (m *ContainerMonitor) Start() error {
 	for {
-		time.Sleep(1 * time.Second)
+		time.Sleep(100 * time.Millisecond)
 
 		// get container list
 		containerList, _ := m.csmHandler.GetContainerList()

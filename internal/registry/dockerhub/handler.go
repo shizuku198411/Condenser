@@ -18,6 +18,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 const defaultRegistry = "registry-1.docker.io"
@@ -557,6 +559,7 @@ func (s *RegistryDockerHub) applyOneLayer(rootfs, layerBlobPath string) error {
 				return err
 			}
 			_ = os.Chtimes(dstPath, time.Now(), hdr.ModTime)
+			_ = s.applyOwner(dstPath, hdr, false)
 
 		case tar.TypeReg, tar.TypeRegA:
 			if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
@@ -566,6 +569,7 @@ func (s *RegistryDockerHub) applyOneLayer(rootfs, layerBlobPath string) error {
 				return err
 			}
 			_ = os.Chtimes(dstPath, time.Now(), hdr.ModTime)
+			_ = s.applyOwner(dstPath, hdr, false)
 
 		case tar.TypeSymlink:
 			if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
@@ -575,6 +579,7 @@ func (s *RegistryDockerHub) applyOneLayer(rootfs, layerBlobPath string) error {
 			if err := os.Symlink(hdr.Linkname, dstPath); err != nil {
 				return err
 			}
+			_ = s.applyOwner(dstPath, hdr, true)
 
 		case tar.TypeLink: // hardlink
 			if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
@@ -590,11 +595,27 @@ func (s *RegistryDockerHub) applyOneLayer(rootfs, layerBlobPath string) error {
 			if err := os.Link(targetAbs, dstPath); err != nil {
 				return fmt.Errorf("hardlink %s -> %s: %w", dstPath, targetAbs, err)
 			}
+			_ = s.applyOwner(dstPath, hdr, false)
 
 		default:
 			return fmt.Errorf("unsupported tar typeflag %v for %s", hdr.Typeflag, hdr.Name)
 		}
 	}
+}
+
+func (s *RegistryDockerHub) applyOwner(path string, hdr *tar.Header, isSymlink bool) error {
+	uid, gid := hdr.Uid, hdr.Gid
+
+	if isSymlink {
+		if err := unix.Lchown(path, uid, gid); err != nil {
+			return err
+		}
+		return nil
+	}
+	if err := os.Chown(path, uid, gid); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *RegistryDockerHub) writeFileFromTar(dstPath string, r io.Reader, mode os.FileMode) error {

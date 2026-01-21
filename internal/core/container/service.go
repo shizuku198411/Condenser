@@ -113,7 +113,7 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (string, e
 	rollbackFlag.DirectoryEnv = true
 
 	// 8. setup etc files
-	if err := s.setupEtcFiles(containerId); err != nil {
+	if err := s.setupEtcFiles(containerId, containerAddr); err != nil {
 		if err := s.rollback(rollbackFlag, containerId); err != nil {
 			return "", fmt.Errorf("rollback failed: %w", err)
 		}
@@ -230,6 +230,7 @@ func (s *ContainerService) setupContainerDirectory(containerId string) error {
 		filepath.Join(containerDir, "work"),
 		filepath.Join(containerDir, "merged"),
 		filepath.Join(containerDir, "etc"),
+		filepath.Join(containerDir, "logs"),
 	}
 	for _, dir := range dirs {
 		if err := s.filesystemHandler.MkdirAll(dir, 0o755); err != nil {
@@ -239,12 +240,12 @@ func (s *ContainerService) setupContainerDirectory(containerId string) error {
 	return nil
 }
 
-func (s *ContainerService) setupEtcFiles(containerId string) error {
+func (s *ContainerService) setupEtcFiles(containerId string, containerAddr string) error {
 	etcDir := filepath.Join(env.ContainerRootDir, containerId, "etc")
 
 	// /etc/hosts
 	hostsPath := filepath.Join(etcDir, "hosts")
-	hostsData := "127.0.0.1 localhost\n"
+	hostsData := fmt.Sprintf("127.0.0.1 localhost\n%s %s\n", strings.SplitN(containerAddr, "/", 2)[0], containerId)
 	if err := s.filesystemHandler.WriteFile(hostsPath, []byte(hostsData), 0o644); err != nil {
 		return err
 	}

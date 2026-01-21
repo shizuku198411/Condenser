@@ -79,6 +79,7 @@ func (m *BootstrapManager) setupRuntimeDirectory() error {
 		ImageRootDir,
 		LayerRootDir,
 		StoreDir,
+		AuditLogDir,
 	}
 	for _, dir := range dirs {
 		if err := m.filesystemHandler.MkdirAll(dir, 0o644); err != nil {
