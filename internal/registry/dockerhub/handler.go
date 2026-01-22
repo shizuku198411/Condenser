@@ -3,8 +3,8 @@ package dockerhub
 import (
 	"archive/tar"
 	"compress/gzip"
-	"condenser/internal/env"
 	"condenser/internal/registry"
+	"condenser/internal/utils"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -38,7 +38,7 @@ func (s *RegistryDockerHub) PullImage(pullParameter registry.RegistryPullModel) 
 	}
 
 	// 2. create output directory
-	repoOut := filepath.Join(env.LayerRootDir, strings.Split(imageRef.repository, "/")[1], imageRef.reference)
+	repoOut := filepath.Join(utils.LayerRootDir, strings.Split(imageRef.repository, "/")[1], imageRef.reference)
 	if err := s.createOutputDirectory(repoOut); err != nil {
 		return "", "", "", "", "", err
 	}

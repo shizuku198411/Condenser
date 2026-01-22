@@ -1,8 +1,8 @@
 package monitor
 
 import (
-	"condenser/internal/env"
 	"condenser/internal/store/csm"
+	"condenser/internal/utils"
 	"log"
 	"syscall"
 	"time"
@@ -10,7 +10,7 @@ import (
 
 func NewContainerMonitor() *ContainerMonitor {
 	return &ContainerMonitor{
-		csmHandler: csm.NewCsmManager(csm.NewCsmStore(env.CsmStorePath)),
+		csmHandler: csm.NewCsmManager(csm.NewCsmStore(utils.CsmStorePath)),
 	}
 }
 

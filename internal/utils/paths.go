@@ -1,4 +1,4 @@
-package env
+package utils
 
 const (
 	RootDir          = "/etc/raind"

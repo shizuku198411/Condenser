@@ -2,6 +2,7 @@ package env
 
 import (
 	"bufio"
+	"condenser/internal/core/network"
 	"condenser/internal/lsm"
 	"condenser/internal/store/csm"
 	"condenser/internal/store/ilm"
@@ -16,10 +17,11 @@ func NewBootstrapManager() *BootstrapManager {
 	return &BootstrapManager{
 		filesystemHandler: utils.NewFilesystemExecutor(),
 		commandFactory:    utils.NewCommandFactory(),
-		ipamStoreHandler:  ipam.NewIpamStore(IpamStorePath),
-		ipamHandler:       ipam.NewIpamManager(ipam.NewIpamStore(IpamStorePath)),
-		csmStoreHandler:   csm.NewCsmStore(CsmStorePath),
-		ilmStoreHandler:   ilm.NewIlmStore(IlmStorePath),
+		networkHandler:    network.NewNetworkService(),
+		ipamStoreHandler:  ipam.NewIpamStore(utils.IpamStorePath),
+		ipamHandler:       ipam.NewIpamManager(ipam.NewIpamStore(utils.IpamStorePath)),
+		csmStoreHandler:   csm.NewCsmStore(utils.CsmStorePath),
+		ilmStoreHandler:   ilm.NewIlmStore(utils.IlmStorePath),
 		appArmorHandler:   lsm.NewAppArmorManager(),
 	}
 }
@@ -27,6 +29,7 @@ func NewBootstrapManager() *BootstrapManager {
 type BootstrapManager struct {
 	filesystemHandler utils.FilesystemHandler
 	commandFactory    utils.CommandFactory
+	networkHandler    network.NetworkServiceHandler
 	ipamStoreHandler  ipam.IpamStoreHandler
 	ipamHandler       ipam.IpamHandler
 	csmStoreHandler   csm.CsmStoreHandler
@@ -50,11 +53,6 @@ func (m *BootstrapManager) SetupRuntime() error {
 		return err
 	}
 
-	// 3. setup network
-	if err := m.setupNetwork(); err != nil {
-		return err
-	}
-
 	// 5. setup CSM (Container State Management)
 	if err := m.setupCsm(); err != nil {
 		return err
@@ -62,6 +60,11 @@ func (m *BootstrapManager) SetupRuntime() error {
 
 	// 6. setup ILM (Image Layer Management)
 	if err := m.setupIlm(); err != nil {
+		return err
+	}
+
+	// 3. setup network
+	if err := m.setupNetwork(); err != nil {
 		return err
 	}
 
@@ -75,11 +78,11 @@ func (m *BootstrapManager) SetupRuntime() error {
 
 func (m *BootstrapManager) setupRuntimeDirectory() error {
 	dirs := []string{
-		ContainerRootDir,
-		ImageRootDir,
-		LayerRootDir,
-		StoreDir,
-		AuditLogDir,
+		utils.ContainerRootDir,
+		utils.ImageRootDir,
+		utils.LayerRootDir,
+		utils.StoreDir,
+		utils.AuditLogDir,
 	}
 	for _, dir := range dirs {
 		if err := m.filesystemHandler.MkdirAll(dir, 0o644); err != nil {
@@ -104,7 +107,7 @@ func (m *BootstrapManager) setupCgroup() error {
 }
 
 func (m *BootstrapManager) setupCgroupDirectory() error {
-	dir := CgroupRuntimeDir
+	dir := utils.CgroupRuntimeDir
 	if err := m.filesystemHandler.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -135,7 +138,7 @@ func (m *BootstrapManager) enableCgroupControllers() error {
 }
 
 func (m *BootstrapManager) readCgroupEnabledControllers() (map[string]bool, error) {
-	subtreePath := CgroupSubtreeControlPath
+	subtreePath := utils.CgroupSubtreeControlPath
 	f, err := m.filesystemHandler.Open(subtreePath)
 	if err != nil {
 		return nil, err
@@ -159,7 +162,7 @@ func (m *BootstrapManager) readCgroupEnabledControllers() (map[string]bool, erro
 }
 
 func (m *BootstrapManager) writeCgroupController(token string) error {
-	subtreePath := CgroupSubtreeControlPath
+	subtreePath := utils.CgroupSubtreeControlPath
 	f, err := m.filesystemHandler.OpenFile(subtreePath, os.O_WRONLY, 0)
 	if err != nil {
 		return err
@@ -198,29 +201,8 @@ func (m *BootstrapManager) createBridgeInterface() error {
 	}
 
 	for _, n := range networkList {
-		// check if bridge interface already exist
-		check := m.commandFactory.Command("ip", "link", "show", n.Interface)
-		if err := check.Run(); err == nil {
-			// bridge interface already exist
-			return nil
-		}
-
-		// create bridge interface
-		add := m.commandFactory.Command("ip", "link", "add", n.Interface, "type", "bridge")
-		if err := add.Run(); err != nil {
-			return fmt.Errorf("ip link add: %w", err)
-		}
-
-		// assign address
-		assign := m.commandFactory.Command("ip", "addr", "add", n.Address, "dev", n.Interface)
-		if err := assign.Run(); err != nil {
-			return fmt.Errorf("ip addr add: %w", err)
-		}
-
-		// up link
-		up := m.commandFactory.Command("ip", "link", "set", n.Interface, "up")
-		if err := up.Run(); err != nil {
-			return fmt.Errorf("ip link up: %w", err)
+		if err := m.networkHandler.CreateBridgeInterface(n.Interface, n.Address); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -236,18 +218,10 @@ func (m *BootstrapManager) createMasqueradeRule() error {
 		return err
 	}
 
-	// check if rule already exist
-	check := m.commandFactory.Command("iptables", "-t", "nat", "-C", "POSTROUTING", "-s", runtimeSubnet, "-o", hostInterface, "-j", "MASQUERADE")
-	if err := check.Run(); err == nil {
-		// rule already exist
-		return nil
+	if err := m.networkHandler.CreateMasqueradeRule(runtimeSubnet, hostInterface); err != nil {
+		return err
 	}
 
-	// add rule
-	add := m.commandFactory.Command("iptables", "-t", "nat", "-A", "POSTROUTING", "-s", runtimeSubnet, "-o", hostInterface, "-j", "MASQUERADE")
-	if err := add.Run(); err != nil {
-		return fmt.Errorf("iptables add: %w", err)
-	}
 	return nil
 }
 
@@ -263,15 +237,33 @@ func (m *BootstrapManager) createManagementProtectRule() error {
 	hostAddr = strings.Split(hostAddr, "/")[0]
 
 	// allow rule for hook traffic: container -> host:7756
-	allowHook := m.commandFactory.Command("iptables", "-I", "INPUT", "1", "-s", runtimeSubnet, "-p", "tcp", "-d", hostAddr, "--dport", "7756", "-j", "ACCEPT")
-	if err := allowHook.Run(); err != nil {
+	if err := m.networkHandler.InsertInputRule(
+		1,
+		network.InputRuleModel{
+			SourceAddr: runtimeSubnet,
+			DestAddr:   hostAddr,
+			Protocol:   "tcp",
+			DestPort:   7756,
+		},
+		"ACCEPT",
+	); err != nil {
 		return err
 	}
+
 	// drop rule for management traffic: container -> host:7755
-	dropMgmt := m.commandFactory.Command("iptables", "-I", "INPUT", "2", "-s", runtimeSubnet, "-p", "tcp", "-d", hostAddr, "--dport", "7755", "-j", "DROP")
-	if err := dropMgmt.Run(); err != nil {
+	if err := m.networkHandler.InsertInputRule(
+		2,
+		network.InputRuleModel{
+			SourceAddr: runtimeSubnet,
+			DestAddr:   hostAddr,
+			Protocol:   "tcp",
+			DestPort:   7755,
+		},
+		"DROP",
+	); err != nil {
 		return err
 	}
+
 	return nil
 }
 

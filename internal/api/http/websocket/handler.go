@@ -1,7 +1,7 @@
 package websocket
 
 import (
-	"condenser/internal/env"
+	"condenser/internal/utils"
 	"context"
 	"errors"
 	"fmt"
@@ -22,7 +22,7 @@ import (
 func NewRequestHandler() *Handler {
 	return &Handler{
 		Resolver: StaticResolver{
-			ContainerRoot: env.ContainerRootDir,
+			ContainerRoot: utils.ContainerRootDir,
 			SockName:      "tty.sock",
 		},
 		Upgrader: websocket.Upgrader{},
@@ -32,7 +32,7 @@ func NewRequestHandler() *Handler {
 func NewExecRequestHandler() *Handler {
 	return &Handler{
 		Resolver: StaticResolver{
-			ContainerRoot: env.ContainerRootDir,
+			ContainerRoot: utils.ContainerRootDir,
 			SockName:      "exec_tty.sock",
 		},
 	}

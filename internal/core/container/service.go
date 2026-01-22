@@ -3,7 +3,6 @@ package container
 import (
 	"condenser/internal/core/image"
 	"condenser/internal/core/network"
-	"condenser/internal/env"
 	"condenser/internal/runtime"
 	"condenser/internal/runtime/droplet"
 	"condenser/internal/store/csm"
@@ -26,9 +25,9 @@ func NewContaierService() *ContainerService {
 		commandFactory:    utils.NewCommandFactory(),
 		runtimeHandler:    droplet.NewDropletHandler(),
 
-		ipamHandler: ipam.NewIpamManager(ipam.NewIpamStore(env.IpamStorePath)),
-		ilmHandler:  ilm.NewIlmManager(ilm.NewIlmStore(env.IlmStorePath)),
-		csmHandler:  csm.NewCsmManager(csm.NewCsmStore(env.CsmStorePath)),
+		ipamHandler: ipam.NewIpamManager(ipam.NewIpamStore(utils.IpamStorePath)),
+		ilmHandler:  ilm.NewIlmManager(ilm.NewIlmStore(utils.IlmStorePath)),
+		csmHandler:  csm.NewCsmManager(csm.NewCsmStore(utils.CsmStorePath)),
 
 		imageServiceHandler:   image.NewImageService(),
 		networkServiceHandler: network.NewNetworkService(),
@@ -49,12 +48,19 @@ type ContainerService struct {
 }
 
 // == service: create ==
-func (s *ContainerService) Create(createParameter ServiceCreateModel) (string, error) {
-	// RollbackFlag for handling rollback handling when process is not completed successfuly
-	var rollbackFlag RollbackFlag
-
+func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string, err error) {
 	// 1. generate container id
 	containerId := utils.NewUlid()
+
+	// RollbackFlag for handling rollback handling when process is not completed successfuly
+	var rollbackFlag RollbackFlag
+	defer func() {
+		if err != nil {
+			if rbErr := s.rollback(rollbackFlag, containerId); rbErr != nil {
+				err = rbErr
+			}
+		}
+	}()
 
 	// 2. check if the requested image exist
 	imageRepo, imageRef, err := s.parseImageRef(createParameter.Image)
@@ -105,26 +111,17 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (string, e
 
 	// 7. setup container directory
 	if err := s.setupContainerDirectory(containerId); err != nil {
-		if err := s.rollback(rollbackFlag, containerId); err != nil {
-			return "", fmt.Errorf("rollback failed: %w", err)
-		}
 		return "", fmt.Errorf("create container directory failed: %w", err)
 	}
 	rollbackFlag.DirectoryEnv = true
 
 	// 8. setup etc files
 	if err := s.setupEtcFiles(containerId, containerAddr); err != nil {
-		if err := s.rollback(rollbackFlag, containerId); err != nil {
-			return "", fmt.Errorf("rollback failed: %w", err)
-		}
 		return "", fmt.Errorf("setup etc files failed: %w", err)
 	}
 
 	// 9. setup cgroup subtree
 	if err := s.setupCgroupSubtree(containerId); err != nil {
-		if err := s.rollback(rollbackFlag, containerId); err != nil {
-			return "", fmt.Errorf("rollback failed: %w", err)
-		}
 		return "", fmt.Errorf("setup cgroup subtree failed: %w", err)
 	}
 	rollbackFlag.CgroupEntry = true
@@ -134,26 +131,17 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (string, e
 		containerId, createParameter, imageRepo, imageRef, imageConfig,
 		bridgeInterface, containerAddr, containerGateway,
 	); err != nil {
-		if err := s.rollback(rollbackFlag, containerId); err != nil {
-			return "", fmt.Errorf("rollback failed: %w", err)
-		}
 		return "", fmt.Errorf("create spec failed: %w", err)
 	}
 
 	// 11. setup forward rule
 	if err := s.setupForwardRule(containerId, createParameter.Port); err != nil {
-		if err := s.rollback(rollbackFlag, containerId); err != nil {
-			return "", fmt.Errorf("rollback failed: %w", err)
-		}
 		return "", fmt.Errorf("forward rule failed: %w", err)
 	}
 	rollbackFlag.ForwardRule = true
 
 	// 12. create container
 	if err := s.createContainer(containerId, createParameter.Tty); err != nil {
-		if err := s.rollback(rollbackFlag, containerId); err != nil {
-			return "", fmt.Errorf("rollback failed: %w", err)
-		}
 		return "", fmt.Errorf("create container failed: %w", err)
 	}
 
@@ -223,7 +211,7 @@ func (s *ContainerService) pullImage(targetImage string, os string, arch string)
 }
 
 func (s *ContainerService) setupContainerDirectory(containerId string) error {
-	containerDir := filepath.Join(env.ContainerRootDir, containerId)
+	containerDir := filepath.Join(utils.ContainerRootDir, containerId)
 	dirs := []string{
 		containerDir,
 		filepath.Join(containerDir, "diff"),
@@ -241,7 +229,7 @@ func (s *ContainerService) setupContainerDirectory(containerId string) error {
 }
 
 func (s *ContainerService) setupEtcFiles(containerId string, containerAddr string) error {
-	etcDir := filepath.Join(env.ContainerRootDir, containerId, "etc")
+	etcDir := filepath.Join(utils.ContainerRootDir, containerId, "etc")
 
 	// /etc/hosts
 	hostsPath := filepath.Join(etcDir, "hosts")
@@ -268,7 +256,7 @@ func (s *ContainerService) setupEtcFiles(containerId string, containerAddr strin
 }
 
 func (s *ContainerService) setupCgroupSubtree(containerId string) error {
-	cgroupPath := filepath.Join(env.CgroupRuntimeDir, containerId)
+	cgroupPath := filepath.Join(utils.CgroupRuntimeDir, containerId)
 
 	if err := s.filesystemHandler.MkdirAll(cgroupPath, 0o755); err != nil {
 		return err
@@ -277,7 +265,7 @@ func (s *ContainerService) setupCgroupSubtree(containerId string) error {
 }
 
 func (s *ContainerService) ChangeCgroupMode(containerId string) error {
-	cgroupPath := filepath.Join(env.CgroupRuntimeDir, containerId)
+	cgroupPath := filepath.Join(utils.CgroupRuntimeDir, containerId)
 
 	if err := s.filesystemHandler.Chmod(cgroupPath, 0o555); err != nil {
 		return err
@@ -309,7 +297,7 @@ func (s *ContainerService) createContainerSpec(
 
 	// spec parametr
 	// rootfs
-	rootfs := filepath.Join(env.ContainerRootDir, containerId, "merged")
+	rootfs := filepath.Join(utils.ContainerRootDir, containerId, "merged")
 
 	// cwd
 	cwd := imageConfig.Config.WorkingDir
@@ -344,16 +332,16 @@ func (s *ContainerService) createContainerSpec(
 	}
 
 	// container interface
-	containerInterface := "eth0"
+	containerInterface := "rd_" + containerId
 	containerDns := []string{"8.8.8.8"}
 
 	imageLayer, err := s.ilmHandler.GetRootfsPath(imageRepo, imageRef)
 	if err != nil {
 		return err
 	}
-	upperDir := filepath.Join(env.ContainerRootDir, containerId, "diff")
-	workDir := filepath.Join(env.ContainerRootDir, containerId, "work")
-	outputDir := filepath.Join(env.ContainerRootDir, containerId)
+	upperDir := filepath.Join(utils.ContainerRootDir, containerId, "diff")
+	workDir := filepath.Join(utils.ContainerRootDir, containerId, "work")
+	outputDir := filepath.Join(utils.ContainerRootDir, containerId)
 
 	// hook
 	hookAddr, err := s.ipamHandler.GetDefaultInterfaceAddr()
@@ -685,7 +673,7 @@ func (s *ContainerService) releaseAddress(containerId string) error {
 }
 
 func (s *ContainerService) deleteContainerDirectory(containerId string) error {
-	containerDir := filepath.Join(env.ContainerRootDir, containerId)
+	containerDir := filepath.Join(utils.ContainerRootDir, containerId)
 	if err := s.filesystemHandler.RemoveAll(containerDir); err != nil {
 		return err
 	}
@@ -693,7 +681,7 @@ func (s *ContainerService) deleteContainerDirectory(containerId string) error {
 }
 
 func (s *ContainerService) deleteCgroupSubtree(containerId string) error {
-	cgroupPath := filepath.Join(env.CgroupRuntimeDir, containerId)
+	cgroupPath := filepath.Join(utils.CgroupRuntimeDir, containerId)
 	if err := s.filesystemHandler.Remove(cgroupPath); err != nil {
 		return err
 	}
