@@ -15,4 +15,8 @@ const (
 
 	CgroupRuntimeDir         = "/sys/fs/cgroup/raind"
 	CgroupSubtreeControlPath = "/sys/fs/cgroup/raind/cgroup.subtree_control"
+
+	CertDir        = "/etc/raind/cert"
+	PublicCertPath = "/etc/raind/cert/raind.crt"
+	PrivateKeyPath = "/etc/raind/cert/raind.key"
 )

@@ -2,6 +2,7 @@ package env
 
 import (
 	"bufio"
+	"condenser/internal/cert"
 	"condenser/internal/core/network"
 	"condenser/internal/core/policy"
 	"condenser/internal/lsm"
@@ -11,14 +12,17 @@ import (
 	"condenser/internal/store/npm"
 	"condenser/internal/utils"
 	"fmt"
+	"net"
 	"os"
 	"strings"
+	"time"
 )
 
 func NewBootstrapManager() *BootstrapManager {
 	return &BootstrapManager{
 		filesystemHandler: utils.NewFilesystemExecutor(),
 		commandFactory:    utils.NewCommandFactory(),
+		certHandler:       cert.NewCertManager(),
 		networkHandler:    network.NewNetworkService(),
 		policyHandler:     policy.NewwServicePolicy(),
 		ipamStoreHandler:  ipam.NewIpamStore(utils.IpamStorePath),
@@ -33,6 +37,7 @@ func NewBootstrapManager() *BootstrapManager {
 type BootstrapManager struct {
 	filesystemHandler utils.FilesystemHandler
 	commandFactory    utils.CommandFactory
+	certHandler       cert.CertHandler
 	networkHandler    network.NetworkServiceHandler
 	policyHandler     policy.PolicyServiceHandler
 	ipamStoreHandler  ipam.IpamStoreHandler
@@ -74,6 +79,11 @@ func (m *BootstrapManager) SetupRuntime() error {
 		return err
 	}
 
+	// 7. setup certificate
+	if err := m.setupCertificate(); err != nil {
+		return err
+	}
+
 	// 6. setup network
 	if err := m.setupNetwork(); err != nil {
 		return err
@@ -99,6 +109,7 @@ func (m *BootstrapManager) setupRuntimeDirectory() error {
 		utils.LayerRootDir,
 		utils.StoreDir,
 		utils.AuditLogDir,
+		utils.CertDir,
 	}
 	for _, dir := range dirs {
 		if err := m.filesystemHandler.MkdirAll(dir, 0o644); err != nil {
@@ -316,6 +327,34 @@ func (m *BootstrapManager) setupPolicy() error {
 	}
 	// 2. setup user defined policy
 	if err := m.policyHandler.BuildUserPolicy(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *BootstrapManager) setupCertificate() error {
+	hostaddr, err := m.ipamHandler.GetDefaultInterfaceAddr()
+	if err != nil {
+		return err
+	}
+	hostaddr = strings.SplitN(hostaddr, "/", 2)[0]
+
+	err = m.certHandler.EnsureSelfSignedCert(
+		utils.PublicCertPath,
+		utils.PrivateKeyPath,
+		cert.CertConfig{
+			CommonName: "raind",
+			DNSNames: []string{
+				"localhost",
+			},
+			IPAddresses: []net.IP{
+				net.ParseIP("127.0.0.1"),
+				net.ParseIP(hostaddr),
+			},
+			ValidFor: 5 * 365 * 24 * time.Hour, // 5 years
+		},
+	)
+	if err != nil {
 		return err
 	}
 	return nil

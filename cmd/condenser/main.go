@@ -4,6 +4,8 @@ import (
 	httpapi "condenser/internal/api/http"
 	"condenser/internal/env"
 	"condenser/internal/monitor"
+	"condenser/internal/utils"
+	"crypto/tls"
 	"log"
 	"net/http"
 )
@@ -19,9 +21,21 @@ func main() {
 	// start Management Server
 	managementAddr := "127.0.0.1:7755"
 	managementRouter := httpapi.NewApiRouter()
+	managementSrv := &http.Server{
+		Addr:    managementAddr,
+		Handler: managementRouter,
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS13,
+		},
+	}
 	go func() {
 		log.Printf("[*] management server listening on %s", managementAddr)
-		if err := http.ListenAndServe(managementAddr, managementRouter); err != nil {
+		/*
+			if err := http.ListenAndServe(managementAddr, managementRouter); err != nil {
+				log.Fatal(err)
+			}
+		*/
+		if err := managementSrv.ListenAndServeTLS(utils.PublicCertPath, utils.PrivateKeyPath); err != nil {
 			log.Fatal(err)
 		}
 	}()
@@ -39,9 +53,21 @@ func main() {
 	// start Swagger
 	swaggerAddr := ":7757"
 	swaggerRouter := httpapi.NewSwaggerRouter()
+	swaggerSrv := &http.Server{
+		Addr:    swaggerAddr,
+		Handler: swaggerRouter,
+		TLSConfig: &tls.Config{
+			MinVersion: tls.VersionTLS13,
+		},
+	}
 	go func() {
 		log.Printf("[*] swagger listening on %s", swaggerAddr)
-		if err := http.ListenAndServe(swaggerAddr, swaggerRouter); err != nil {
+		/*
+			if err := http.ListenAndServe(swaggerAddr, swaggerRouter); err != nil {
+				log.Fatal(err)
+			}
+		*/
+		if err := swaggerSrv.ListenAndServeTLS(utils.PublicCertPath, utils.PrivateKeyPath); err != nil {
 			log.Fatal(err)
 		}
 	}()
