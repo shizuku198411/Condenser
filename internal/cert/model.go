@@ -11,3 +11,10 @@ type CertConfig struct {
 	IPAddresses []net.IP
 	ValidFor    time.Duration
 }
+
+type ClientCertConfig struct {
+	CommonName string
+	DNSNames   []string
+	URISANs    []string
+	ValidFor   time.Duration
+}

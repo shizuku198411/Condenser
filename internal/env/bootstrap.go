@@ -333,6 +333,7 @@ func (m *BootstrapManager) setupPolicy() error {
 }
 
 func (m *BootstrapManager) setupCertificate() error {
+	// 1. server cert
 	hostaddr, err := m.ipamHandler.GetDefaultInterfaceAddr()
 	if err != nil {
 		return err
@@ -357,5 +358,35 @@ func (m *BootstrapManager) setupCertificate() error {
 	if err != nil {
 		return err
 	}
+
+	// 2. client CA
+	err = m.certHandler.EnsureClientCACert(
+		utils.ClientIssuerCACertPath,
+		utils.ClientIssuerCAKeyPath,
+		cert.CertConfig{
+			CommonName: "raind client issuer",
+			ValidFor:   5 * 365 * 24 * time.Hour, // 5 years
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	// 3. client cert
+	err = m.certHandler.IssueClientCert(
+		utils.ClientCertPath,
+		utils.ClientKeyPath,
+		utils.ClientIssuerCACertPath,
+		utils.ClientIssuerCAKeyPath,
+		cert.ClientCertConfig{
+			CommonName: "raind-client",
+			DNSNames:   []string{"raind-client"},
+			ValidFor:   1 * 365 * 24 * time.Hour, // 1 year
+		},
+	)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
