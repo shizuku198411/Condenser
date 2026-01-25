@@ -47,7 +47,7 @@ func (h *RequestHandler) SignCSRHandler(w http.ResponseWriter, r *http.Request) 
 
 	spiffeId, role, id, err := extractAndValidateSPIFFE(csr, "raind")
 	if err != nil {
-		apimodel.RespondFail(w, http.StatusForbidden, "spiffe policy  denied: "+err.Error(), nil)
+		apimodel.RespondFail(w, http.StatusForbidden, "spiffe policy denied: "+err.Error(), nil)
 		return
 	}
 

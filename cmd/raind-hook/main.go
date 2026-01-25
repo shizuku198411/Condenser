@@ -33,6 +33,12 @@ func main() {
 		os.Exit(2)
 	}
 
+	// validate env
+	if os.Getenv("RAIND-HOOK-SETTER") != "CONDENSER" {
+		fmt.Fprintf(os.Stderr, "invalid raind-hook client\n")
+		os.Exit(2)
+	}
+
 	// read stdin (OCI state.json)
 	body, err := readBodyWithLimit(os.Stdin, 1<<20) // 1 MiB limit
 	if err != nil {
@@ -40,53 +46,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *event == "createRuntime" {
-		// generate csr
-		var st State
-		if err := json.Unmarshal(body, &st); err != nil {
-			fmt.Fprintf(os.Stderr, "json parse: %v\n", err)
-			os.Exit(1)
-		}
-		// if cert/key already exist, skip generate csr flow
-		if !isCertificateExist(st) {
-			if err := generateCsr(st); err != nil {
-				fmt.Fprintf(os.Stderr, "generate csr: %v\n", err)
-				os.Exit(1)
-			}
-			// request cert
-			uParts, err := url.Parse(*u)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "url pars:  %v\n", err)
-				os.Exit(1)
-			}
-			reqUrl := uParts.Scheme + "://" + uParts.Hostname() + ":7757/v1/pki/sign"
-			if err := requestCert(st, reqUrl); err != nil {
-				fmt.Fprintf(os.Stderr, "request cert: %v\n", err)
-				os.Exit(1)
-			}
-		}
-	}
-
-	client, err := newMTLSClient(*ca, *cert, *key)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "init http client: %v\n", err)
+	switch *event {
+	case "requestCert":
+		_ = requestClientCertificate(body, u, ca, cert, key)
+	case "createRuntime", "createContainer", "poststart", "stopContainer", "poststop":
+		_ = postContainerState(body, event, u, ca, cert, key)
+	default:
+		fmt.Fprintf(os.Stderr, "invalid event: %s", *event)
 		os.Exit(1)
 	}
-
-	req, err := http.NewRequest(http.MethodPost, *u, bytes.NewReader(body))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "new request: %v\n", err)
-		os.Exit(1)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Hook-Event", *event)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "post: %v\n", err)
-		os.Exit(1)
-	}
-	defer resp.Body.Close()
 
 	os.Exit(0)
 }
@@ -132,6 +100,58 @@ func newMTLSClient(caPath, certPath, keyPath string) (*http.Client, error) {
 	return &http.Client{Transport: transport}, nil
 }
 
+func requestClientCertificate(body []byte, u *string, ca *string, cert *string, key *string) error {
+	// generate csr
+	var st State
+	if err := json.Unmarshal(body, &st); err != nil {
+		fmt.Fprintf(os.Stderr, "json parse: %v\n", err)
+		os.Exit(1)
+	}
+	// if cert/key already exist, skip generate csr flow
+	if !isCertificateExist(st) {
+		if err := generateCsr(st); err != nil {
+			fmt.Fprintf(os.Stderr, "generate csr: %v\n", err)
+			os.Exit(1)
+		}
+		// request cert
+		if err := requestCert(st, *u, *ca, *cert, *key); err != nil {
+			fmt.Fprintf(os.Stderr, "request cert: %v\n", err)
+			os.Exit(1)
+		}
+	}
+	return nil
+}
+
+func postContainerState(body []byte, event *string, u *string, ca *string, cert *string, key *string) error {
+	client, err := newMTLSClient(*ca, *cert, *key)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "init http client: %v\n", err)
+		os.Exit(1)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, *u, bytes.NewReader(body))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "new request: %v\n", err)
+		os.Exit(1)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Hook-Event", *event)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "post: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		fmt.Fprintf(os.Stderr, "post state failed")
+		os.Exit(1)
+	}
+
+	return nil
+}
+
 type State struct {
 	ContainerId string `json:"id"`
 	Status      string `json:"status"`
@@ -168,14 +188,10 @@ func generateCsr(st State) error {
 	return nil
 }
 
-func requestCert(st State, url string) error {
+func requestCert(st State, url string, ca string, cert string, key string) error {
 	csrPem, _ := os.ReadFile("/etc/raind/container/" + st.ContainerId + "/cert/req.csr")
 
-	client, err := newMTLSClient(
-		"/etc/raind/cert/raind.crt",
-		"/etc/raind/cert/raindHookClient.crt",
-		"/etc/raind/cert/raindHookClient.key",
-	)
+	client, err := newMTLSClient(ca, cert, key)
 	if err != nil {
 		return err
 	}

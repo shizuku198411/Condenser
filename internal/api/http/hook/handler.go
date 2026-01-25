@@ -35,9 +35,8 @@ type RequestHandler struct {
 // @Router /v1/hooks/droplet [post]
 func (h *RequestHandler) ApplyHook(w http.ResponseWriter, r *http.Request) {
 	eventType := r.Header.Get("X-Hook-Event")
-
-	if ok, err := h.validateSpiffe(r); !ok {
-		apimodel.RespondFail(w, http.StatusBadRequest, "validate failed: "+err.Error(), nil)
+	if eventType == "" {
+		apimodel.RespondFail(w, http.StatusBadRequest, "invalid request", nil)
 		return
 	}
 
@@ -52,6 +51,11 @@ func (h *RequestHandler) ApplyHook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if ok, err := h.validateSpiffe(r, st); !ok {
+		apimodel.RespondFail(w, http.StatusUnauthorized, "validate failed: "+err.Error(), nil)
+		return
+	}
+
 	// service: hook
 	if err := h.hookServiceHandler.HookAction(st, eventType); err != nil {
 		apimodel.RespondFail(w, http.StatusInternalServerError, "service hook failed: "+err.Error(), nil)
@@ -61,7 +65,7 @@ func (h *RequestHandler) ApplyHook(w http.ResponseWriter, r *http.Request) {
 	apimodel.RespondSuccess(w, http.StatusOK, "hook applied", nil)
 }
 
-func (h *RequestHandler) validateSpiffe(r *http.Request) (bool, error) {
+func (h *RequestHandler) validateSpiffe(r *http.Request, state hook.ServiceStateModel) (bool, error) {
 	cert := r.TLS.PeerCertificates[0]
 	for _, uri := range cert.URIs {
 		u, err := url.Parse(uri.String())
@@ -75,7 +79,7 @@ func (h *RequestHandler) validateSpiffe(r *http.Request) (bool, error) {
 		}
 		// validate domain
 		if u.Host != "raind" {
-			return false, fmt.Errorf("invalid host: %s", u.Host)
+			return false, fmt.Errorf("invalid domain: %s", u.Host)
 		}
 
 		// retrieve container id
@@ -90,8 +94,13 @@ func (h *RequestHandler) validateSpiffe(r *http.Request) (bool, error) {
 		}
 
 		// validate container id
+		// check if the spiffe's id exist
 		if ok := h.csmHandler.IsContainerExist(containerId); !ok {
 			return false, fmt.Errorf("container: %s not found", containerId)
+		}
+		// check if the spiffe's id and state's id is same
+		if containerId != state.Id {
+			return false, fmt.Errorf("SPIFFE ID did not match the state ID: spiffe=%s, state=%s", containerId, state.Id)
 		}
 	}
 	return true, nil
