@@ -52,7 +52,7 @@ func (h *RequestHandler) ApplyHook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if ok, err := h.validateSpiffe(r, st); !ok {
-		apimodel.RespondFail(w, http.StatusUnauthorized, "validate failed: "+err.Error(), nil)
+		apimodel.RespondFail(w, http.StatusForbidden, "validate failed: "+err.Error(), nil)
 		return
 	}
 

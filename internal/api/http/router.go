@@ -123,11 +123,10 @@ func RequireSPIFFE(prefix string) func(http.Handler) http.Handler {
 			}
 			// validate
 			cert := r.TLS.PeerCertificates[0]
-			for _, uri := range cert.URIs {
-				if strings.HasPrefix(uri.String(), prefix) {
-					next.ServeHTTP(w, r)
-					return
-				}
+			spiffeId := cert.URIs[0]
+			if strings.HasPrefix(spiffeId.String(), prefix) {
+				next.ServeHTTP(w, r)
+				return
 			}
 			http.Error(w, "forbidden", http.StatusForbidden)
 		})
