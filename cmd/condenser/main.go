@@ -2,7 +2,7 @@ package main
 
 import (
 	httpapi "condenser/internal/api/http"
-	"condenser/internal/cert"
+	"condenser/internal/core/cert"
 	"condenser/internal/env"
 	"condenser/internal/monitor"
 	"condenser/internal/utils"

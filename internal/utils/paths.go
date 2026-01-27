@@ -25,4 +25,6 @@ const (
 	ClientKeyPath          = "/etc/raind/cert/raindClient.key"
 	HookClientCertPath     = "/etc/raind/cert/raindHookClient.crt"
 	HookClientKeyPath      = "/etc/raind/cert/raindHookClient.key"
+
+	AuditLogPath = "/etc/raind/log/condenser_audit.log"
 )

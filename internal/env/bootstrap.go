@@ -2,7 +2,7 @@ package env
 
 import (
 	"bufio"
-	"condenser/internal/cert"
+	"condenser/internal/core/cert"
 	"condenser/internal/core/network"
 	"condenser/internal/core/policy"
 	"condenser/internal/lsm"
