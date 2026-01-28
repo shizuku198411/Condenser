@@ -3,6 +3,7 @@ package main
 import (
 	httpapi "condenser/internal/api/http"
 	"condenser/internal/core/cert"
+	enrichedlog "condenser/internal/enriched_log"
 	"condenser/internal/env"
 	"condenser/internal/monitor"
 	"condenser/internal/utils"
@@ -89,6 +90,12 @@ func main() {
 		if err := swaggerSrv.ListenAndServeTLS(utils.PublicCertPath, utils.PrivateKeyPath); err != nil {
 			log.Fatal(err)
 		}
+	}()
+
+	// enriched logger
+	go func() {
+		enLogger := enrichedlog.NewEnrichedLogHandler()
+		enLogger.EnrichedLogger()
 	}()
 
 	// start monitoring
