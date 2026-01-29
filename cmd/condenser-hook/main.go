@@ -119,10 +119,10 @@ func requestClientCertificate(body []byte, u *string, ca *string, cert *string, 
 			os.Exit(1)
 		}
 		// remove csr
-		//if err := removeCsr(st); err != nil {
-		//	fmt.Fprintf(os.Stderr, "remove csr: %v\n", err)
-		//	os.Exit(1)
-		//}
+		if err := removeCsr(st); err != nil {
+			fmt.Fprintf(os.Stderr, "remove csr: %v\n", err)
+			os.Exit(1)
+		}
 	}
 	return nil
 }
