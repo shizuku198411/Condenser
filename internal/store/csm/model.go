@@ -8,6 +8,7 @@ type ContainerInfo struct {
 	SpiffeId      string    `json:"spiffeId"`
 	State         string    `json:"state"`
 	Pid           int       `json:"pid"`
+	Tty           bool      `json:"tty"`
 	Repository    string    `json:"imageRepository"`
 	Reference     string    `json:"imageReference"`
 	Command       []string  `json:"command"`

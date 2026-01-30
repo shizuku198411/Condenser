@@ -15,13 +15,14 @@ type CsmManager struct {
 	csmStore *CsmStore
 }
 
-func (m *CsmManager) StoreContainer(containerId string, state string, pid int, repo, ref string, command []string, name string) error {
+func (m *CsmManager) StoreContainer(containerId string, state string, pid int, tty bool, repo, ref string, command []string, name string) error {
 	return m.csmStore.withLock(func(st *ContainerState) error {
 		st.Containers[containerId] = ContainerInfo{
 			ContainerId:   containerId,
 			ContainerName: name,
 			State:         state,
 			Pid:           pid,
+			Tty:           tty,
 			Repository:    repo,
 			Reference:     ref,
 			Command:       command,

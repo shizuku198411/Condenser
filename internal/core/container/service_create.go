@@ -35,15 +35,13 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 
 	// RollbackFlag for handling rollback handling when process is not completed successfuly
 	var rollbackFlag RollbackFlag
-	/*
-		defer func() {
-			if err != nil {
-				if rbErr := s.rollback(rollbackFlag, containerId); rbErr != nil {
-					err = rbErr
-				}
+	defer func() {
+		if err != nil {
+			if rbErr := s.rollback(rollbackFlag, containerId); rbErr != nil {
+				err = rbErr
 			}
-		}()
-	*/
+		}
+	}()
 
 	// 2. check if the requested image exist
 	imageRepo, imageRef, err := s.parseImageRef(createParameter.Image)
@@ -87,7 +85,7 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	} else {
 		command = slices.Concat(imageConfig.Config.Entrypoint, imageConfig.Config.Cmd)
 	}
-	if err := s.csmHandler.StoreContainer(containerId, "creating", 0, imageRepo, imageRef, command, containerName); err != nil {
+	if err := s.csmHandler.StoreContainer(containerId, "creating", 0, createParameter.Tty, imageRepo, imageRef, command, containerName); err != nil {
 		return "", err
 	}
 	rollbackFlag.CSMEntry = true

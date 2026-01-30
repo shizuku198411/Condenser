@@ -1,7 +1,7 @@
 package cert
 
 import (
-	"condenser/internal/api/http/logs"
+	"condenser/internal/api/http/logger"
 	apimodel "condenser/internal/api/http/utils"
 	"condenser/internal/core/cert"
 	"condenser/internal/store/csm"
@@ -69,7 +69,7 @@ func (h *RequestHandler) SignCSRHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// set log: target
-	logs.SetTarget(r.Context(), logs.Target{
+	logger.SetTarget(r.Context(), logger.Target{
 		CommonName: csr.Subject.CommonName,
 		SANURIs:    csr.URIs,
 	})
