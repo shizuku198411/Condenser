@@ -7,7 +7,7 @@ type Logger interface {
 }
 
 type Event struct {
-	TS            string `json:"ts"`
+	TS            string `json:"generated_ts"`
 	EventId       string `json:"event_id"`
 	CorrelationId string `json:"correlation_id,omitempty"`
 	Severity      string `json:"severity"`

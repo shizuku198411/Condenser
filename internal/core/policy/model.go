@@ -16,6 +16,7 @@ type ServiceRemovePolicyModel struct {
 type RuleModel struct {
 	Conntrack       bool
 	Ctstate         []string
+	Syn             bool
 	Physdev         bool
 	PhysdevIsBridge bool
 	InputDev        string

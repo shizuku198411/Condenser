@@ -24,12 +24,19 @@ type Pool struct {
 	Allocations map[string]Allocation `json:"allocations"`
 }
 
+type DnsProxy struct {
+	DnsProxyInterface string   `json:"dnsProxyInterface"`
+	DnsProxyAddr      string   `json:"dnsProxyAddr"`
+	Upstreams         []string `json:"upstreams"`
+}
+
 type IpamState struct {
-	Version           string `json:"version"`
-	RuntimeSubnet     string `json:"runtimeSubnet"`
-	HostInterface     string `json:"hostInterface"`
-	HostInterfaceAddr string `json:"hostInterfaceAddress"`
-	Pools             []Pool `json:"pools"`
+	Version           string   `json:"version"`
+	RuntimeSubnet     string   `json:"runtimeSubnet"`
+	DnsProxy          DnsProxy `json:"dnsProxy"`
+	HostInterface     string   `json:"hostInterface"`
+	HostInterfaceAddr string   `json:"hostInterfaceAddress"`
+	Pools             []Pool   `json:"pools"`
 }
 
 type NetworkList struct {
