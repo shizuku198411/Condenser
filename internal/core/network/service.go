@@ -62,6 +62,28 @@ func (s *NetworkService) CreateMasqueradeRule(src string, dst string) error {
 	return nil
 }
 
+func (s *NetworkService) CreateRedirectDnsTrafficRule(forwarderIf string, forwarderAddr string) error {
+	// check if rule already exist
+	check1 := s.commandFactory.Command("iptables", "-t", "nat", "-C", "PREROUTING", "-i", forwarderIf, "-p", "udp", "--dport", "53", "-j", "DNAT", "--to-destination", forwarderAddr+":1053")
+	if err := check1.Run(); err != nil {
+		// rule not exist, create rule
+		add1 := s.commandFactory.Command("iptables", "-t", "nat", "-A", "PREROUTING", "-i", forwarderIf, "-p", "udp", "--dport", "53", "-j", "DNAT", "--to-destination", forwarderAddr+":1053")
+		if err := add1.Run(); err != nil {
+			return err
+		}
+	}
+
+	check2 := s.commandFactory.Command("iptables", "-t", "nat", "-C", "PREROUTING", "-i", forwarderIf, "-p", "tcp", "--dport", "53", "-j", "DNAT", "--to-destination", forwarderAddr+":1053")
+	if err := check2.Run(); err != nil {
+		// rule not exist, create rule
+		add2 := s.commandFactory.Command("iptables", "-t", "nat", "-A", "PREROUTING", "-i", forwarderIf, "-p", "tcp", "--dport", "53", "-j", "DNAT", "--to-destination", forwarderAddr+":1053")
+		if err := add2.Run(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *NetworkService) InsertInputRule(num int, ruleModel InputRuleModel, action string) error {
 	ruleParam := []string{"-s", ruleModel.SourceAddr, "-d", ruleModel.DestAddr, "-j", action}
 	if ruleModel.Protocol != "" {

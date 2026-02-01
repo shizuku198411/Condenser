@@ -160,6 +160,25 @@ func (m *IpamManager) GetContainerAddress(containerId string) (string, string, s
 	return hostInterface, bridgeInterface, containerAddr, err
 }
 
+func (m *IpamManager) GetDnsProxyInfo() (string, string, []string, error) {
+	var (
+		dnsProxyInterface string
+		dnsProxyAddr      string
+		upstreams         []string
+	)
+
+	err := m.ipamStore.withRLock(func(st *IpamState) error {
+		dnsProxyInterface = st.DnsProxy.DnsProxyInterface
+		dnsProxyAddr = st.DnsProxy.DnsProxyAddr
+		upstreams = st.DnsProxy.Upstreams
+		if dnsProxyInterface == "" || dnsProxyAddr == "" || len(upstreams) == 0 {
+			return fmt.Errorf("Dns Proxy not configured")
+		}
+		return nil
+	})
+	return dnsProxyInterface, dnsProxyAddr, upstreams, err
+}
+
 func (m *IpamManager) SetForwardInfo(containerId string, sport, dport int, protocol string) error {
 	err := m.ipamStore.withLock(func(st *IpamState) error {
 		for i := range st.Pools {

@@ -3,6 +3,7 @@ package main
 import (
 	httpapi "condenser/internal/api/http"
 	"condenser/internal/core/cert"
+	"condenser/internal/dns"
 	enrichedlog "condenser/internal/enriched_log"
 	"condenser/internal/env"
 	"condenser/internal/monitor"
@@ -94,8 +95,15 @@ func main() {
 
 	// enriched logger
 	go func() {
+		log.Printf("[*] enrichement logger start")
 		enLogger := enrichedlog.NewEnrichedLogHandler()
 		enLogger.EnrichedLogger()
+	}()
+
+	// forwarder
+	go func() {
+		log.Printf("[*] dns proxy listening")
+		dns.StartDnsProxy()
 	}()
 
 	// start monitoring

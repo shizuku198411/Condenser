@@ -83,6 +83,9 @@ func (h *IptablesManager) AddRuleToChain(chainName string, ruleModel RuleModel, 
 	}
 	if ruleModel.Protocol != "" {
 		ruleParam = slices.Concat(ruleParam, []string{"-p", ruleModel.Protocol})
+		if ruleModel.Protocol == "tcp" && ruleModel.Syn {
+			ruleParam = slices.Concat(ruleParam, []string{"--syn"})
+		}
 	}
 	if ruleModel.SourcePort > 0 {
 		ruleParam = slices.Concat(ruleParam, []string{"--sport", strconv.Itoa(ruleModel.SourcePort)})

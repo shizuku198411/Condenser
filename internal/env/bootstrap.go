@@ -243,7 +243,10 @@ func (m *BootstrapManager) setupNetwork() error {
 		return err
 	}
 
-	// 4. setup chain
+	// 4. setup dns proxy
+	if err := m.setupDnsProxy(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -318,6 +321,42 @@ func (m *BootstrapManager) createManagementProtectRule() error {
 		return err
 	}
 
+	return nil
+}
+
+func (m *BootstrapManager) setupDnsProxy() error {
+	proxyIf, proxyAddr, _, err := m.ipamHandler.GetDnsProxyInfo()
+	if err != nil {
+		return err
+	}
+	// 1. create dns proxy interface
+	if err := m.createDnsProxyInterface(proxyIf, proxyAddr); err != nil {
+		return err
+	}
+	// 2. create redirect from container:53 to proxy:1053
+	if err := m.createRedirectDnsRule(proxyAddr); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *BootstrapManager) createDnsProxyInterface(ifname string, addr string) error {
+	if err := m.networkHandler.CreateBridgeInterface(ifname, addr); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *BootstrapManager) createRedirectDnsRule(addr string) error {
+	networkList, err := m.ipamHandler.GetNetworkList()
+	if err != nil {
+		return err
+	}
+	for _, n := range networkList {
+		if err := m.networkHandler.CreateRedirectDnsTrafficRule(n.Interface, addr); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

@@ -26,6 +26,7 @@ type Policy struct {
 type Enriched struct {
 	GeneratedTS string         `json:"generated_ts"`
 	ReceivedTS  string         `json:"received_ts"`
+	EventType   string         `json:"event_type"`
 	Policy      Policy         `json:"policy"`
 	Kind        string         `json:"kind"`
 	Verdict     string         `json:"verdict"`

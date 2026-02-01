@@ -102,8 +102,16 @@ func (s *IpamStore) loadOrInit() (*IpamState, error) {
 		if s.filesystemHandler.IsNotExist(err) {
 			// ipam state file not exist
 			return &IpamState{
-				Version:           "0.1.0",
-				RuntimeSubnet:     "10.166.0.0/16",
+				Version:       "0.1.0",
+				RuntimeSubnet: "10.166.0.0/16",
+				DnsProxy: DnsProxy{
+					DnsProxyInterface: "raindDns",
+					DnsProxyAddr:      "10.166.254.254",
+					Upstreams: []string{
+						"8.8.8.8",
+						"1.1.1.1",
+					},
+				},
 				HostInterface:     defaultHostInterface,
 				HostInterfaceAddr: defaultHostInterfaceAddr,
 				Pools: []Pool{
@@ -172,6 +180,14 @@ func (s *IpamStore) SetConfig() error {
 	return s.withLock(func(st *IpamState) error {
 		st.Version = "0.1.0"
 		st.RuntimeSubnet = "10.166.0.0/16"
+		st.DnsProxy = DnsProxy{
+			DnsProxyInterface: "raindDns",
+			DnsProxyAddr:      "10.166.254.254",
+			Upstreams: []string{
+				"8.8.8.8",
+				"1.1.1.1",
+			},
+		}
 		st.HostInterface = defaultHostInterface
 		st.HostInterfaceAddr = defaultHostInterfaceAddr
 		if len(st.Pools) == 0 {

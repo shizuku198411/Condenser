@@ -460,6 +460,7 @@ func (e *Enricher) enrich(rr RawRecord, rawLine []byte) Enriched {
 	out := Enriched{
 		GeneratedTS: genTs,
 		ReceivedTS:  now,
+		EventType:   "log.netflow",
 		Policy:      policy,
 		Kind:        kind,
 		Verdict:     verdict,

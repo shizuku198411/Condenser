@@ -5,5 +5,6 @@ type NetworkServiceHandler interface {
 	CreateMasqueradeRule(src string, dst string) error
 	InsertInputRule(num int, ruleModel InputRuleModel, action string) error
 	CreateForwardingRule(containerId string, parameter ServiceNetworkModel) error
+	CreateRedirectDnsTrafficRule(forwarderIf string, forwarderAddr string) error
 	RemoveForwardingRule(containerId string, parameter ServiceNetworkModel) error
 }
