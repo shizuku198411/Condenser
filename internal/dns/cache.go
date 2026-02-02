@@ -92,7 +92,7 @@ func minTTL(msg *dns.Msg) (time.Duration, bool) {
 }
 
 func isCacheableQuery(r *dns.Msg) bool {
-	if r == nil || r.Opcode != dns.OpcodeIQuery || r.Response {
+	if r == nil || r.Opcode != dns.OpcodeQuery || r.Response {
 		return false
 	}
 	if len(r.Question) != 1 {
