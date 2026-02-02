@@ -48,6 +48,10 @@ func StartDnsProxy() {
 	}
 
 	fwd := NewDnsProxy(upList, time.Duration(timeoutMs)*time.Millisecond, cache)
+	if fwd == nil {
+		log.Fatal(err)
+		return
+	}
 
 	mux := dns.NewServeMux()
 	mux.HandleFunc(".", fwd.ServeDns)

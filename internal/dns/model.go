@@ -34,7 +34,7 @@ type DnsBlock struct {
 	Id       uint16       `json:"id,omitempty"`
 	Rd       bool         `json:"rd,omitempty"`
 	Question DnsQuestion  `json:"question"`
-	Response *DnsResponse `json:"response,omitmpty"`
+	Response *DnsResponse `json:"response,omitempty"`
 }
 
 type DnsQuestion struct {
