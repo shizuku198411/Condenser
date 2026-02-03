@@ -30,4 +30,5 @@ const (
 	AuditLogPath    = "/var/log/raind/raind_audit.jsonl"
 	EnrichedLogPath = "/var/log/raind/raind_netflow.jsonl"
 	DnsLogPath      = "/var/log/raind/raind_dns.jsonl"
+	MetricsLogPath  = "/var/log/raind/raind_metrics.jsonl"
 )
