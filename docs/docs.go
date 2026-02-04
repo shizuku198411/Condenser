@@ -15,6 +15,112 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/v1/bottle": {
+            "get": {
+                "description": "list bottles",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bottles"
+                ],
+                "summary": "list bottles",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "register a bottle from yaml spec",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bottles"
+                ],
+                "summary": "register a bottle",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/bottle/{bottleId}": {
+            "get": {
+                "description": "get bottle detail by id or name",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bottles"
+                ],
+                "summary": "get bottle detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bottle ID or Name",
+                        "name": "bottleId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/bottle/{bottleId}/actions/{action}": {
+            "post": {
+                "description": "start/stop/remove bottle",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "bottles"
+                ],
+                "summary": "perform bottle action",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bottle ID or Name",
+                        "name": "bottleId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Action",
+                        "name": "action",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/containers": {
             "get": {
                 "description": "get all container list",

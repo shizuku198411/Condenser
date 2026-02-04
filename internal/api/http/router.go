@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	certHandler "condenser/internal/api/http/cert"
+	bottleHandler "condenser/internal/api/http/bottle"
 	containerHandler "condenser/internal/api/http/container"
 	hookHandler "condenser/internal/api/http/hook"
 	imageHandler "condenser/internal/api/http/image"
@@ -46,6 +47,7 @@ func NewSwaggerRouter() *chi.Mux {
 func NewApiRouter() *chi.Mux {
 	r := chi.NewRouter()
 	containerHandler := containerHandler.NewRequestHandler()
+	bottleHandler := bottleHandler.NewRequestHandler()
 	imageHandler := imageHandler.NewRequestHandler()
 	socketHandler := websocketHandler.NewRequestHandler()
 	execSocketHandler := websocketHandler.NewExecRequestHandler()
@@ -67,6 +69,12 @@ func NewApiRouter() *chi.Mux {
 	))
 
 	// == v1 ==
+	// == bottles ==
+	r.Post("/v1/bottle", bottleHandler.RegisterBottle)                   // register bottle
+	r.Get("/v1/bottle", bottleHandler.GetBottleList)                     // get bottle list
+	r.Get("/v1/bottle/{bottleId}", bottleHandler.GetBottleDetail)        // get bottle detail
+	r.Post("/v1/bottle/{bottleId}/actions/{action}", bottleHandler.ActionBottle)
+
 	// == containers ==
 	r.Get("/v1/containers", containerHandler.GetContainerList)                                // get container list
 	r.Get("/v1/containers/{containerId}", containerHandler.GetContainerById)                  // get container status by id

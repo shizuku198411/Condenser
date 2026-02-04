@@ -30,12 +30,17 @@ func (s *ContainerService) Start(startParameter ServiceStartModel) (string, erro
 		return "", fmt.Errorf("container: %s already started", containerId)
 
 	case "stopped":
+		// get tty flag
+		containerInfo, err := s.csmHandler.GetContainerById(containerId)
+		if err != nil {
+			return "", err
+		}
 		// create container
-		if err := s.createContainer(containerId, startParameter.Tty); err != nil {
+		if err := s.createContainer(containerId, containerInfo.Tty); err != nil {
 			return "", fmt.Errorf("start container failed: %w", err)
 		}
 		// start container
-		if err := s.startContainer(containerId, startParameter.Tty); err != nil {
+		if err := s.startContainer(containerId, containerInfo.Tty); err != nil {
 			return "", fmt.Errorf("start container failed: %w", err)
 		}
 

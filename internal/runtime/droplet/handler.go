@@ -127,7 +127,6 @@ func (h *DropletHandler) Create(createParameter runtime.CreateModel) error {
 }
 
 func (h *DropletHandler) Start(startParameter runtime.StartModel) error {
-	// TODO: interactive mode
 	args := []string{
 		"start",
 		startParameter.ContainerId,

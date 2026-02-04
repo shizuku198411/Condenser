@@ -117,6 +117,76 @@ definitions:
 info:
   contact: {}
 paths:
+  /v1/bottle:
+    get:
+      description: list bottles
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: list bottles
+      tags:
+      - bottles
+    post:
+      consumes:
+      - text/plain
+      description: register a bottle from yaml spec
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: register a bottle
+      tags:
+      - bottles
+  /v1/bottle/{bottleId}:
+    get:
+      description: get bottle detail by id or name
+      parameters:
+      - description: Bottle ID or Name
+        in: path
+        name: bottleId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: get bottle detail
+      tags:
+      - bottles
+  /v1/bottle/{bottleId}/actions/{action}:
+    post:
+      description: start/stop/remove bottle
+      parameters:
+      - description: Bottle ID or Name
+        in: path
+        name: bottleId
+        required: true
+        type: string
+      - description: Action
+        in: path
+        name: action
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: perform bottle action
+      tags:
+      - bottles
   /v1/containers:
     get:
       description: get all container list
