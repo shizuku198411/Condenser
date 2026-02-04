@@ -15,6 +15,7 @@ type BottleSummary struct {
 	BottleId     string `json:"bottleId"`
 	BottleName   string `json:"bottleName"`
 	ServiceCount int    `json:"serviceCount"`
+	Status       string `json:"status"`
 }
 
 type GetBottleListResponse struct {

@@ -20,17 +20,17 @@ import (
 
 func NewRequestHandler() *RequestHandler {
 	return &RequestHandler{
-		serviceHandler: bottle.NewBottleService(),
-		bsmHandler:     bsm.NewBsmManager(bsm.NewBsmStore(utils.BsmStorePath)),
-		policyHandler:  policy.NewwServicePolicy(),
+		serviceHandler:   bottle.NewBottleService(),
+		bsmHandler:       bsm.NewBsmManager(bsm.NewBsmStore(utils.BsmStorePath)),
+		policyHandler:    policy.NewwServicePolicy(),
 		containerHandler: container.NewContaierService(),
 	}
 }
 
 type RequestHandler struct {
-	serviceHandler bottle.BottleServiceHandler
-	bsmHandler     bsm.BsmHandler
-	policyHandler  policy.PolicyServiceHandler
+	serviceHandler   bottle.BottleServiceHandler
+	bsmHandler       bsm.BsmHandler
+	policyHandler    policy.PolicyServiceHandler
 	containerHandler container.ContainerServiceHandler
 }
 
@@ -115,10 +115,12 @@ func (h *RequestHandler) GetBottleList(w http.ResponseWriter, r *http.Request) {
 	}
 	res := make([]BottleSummary, 0, len(list))
 	for _, b := range list {
+		status := h.buildBottleStatus(b)
 		res = append(res, BottleSummary{
 			BottleId:     b.BottleId,
 			BottleName:   b.BottleName,
 			ServiceCount: len(b.Services),
+			Status:       status,
 		})
 	}
 	apimodel.RespondSuccess(w, http.StatusOK, "bottle list", GetBottleListResponse{Bottles: res})
@@ -312,6 +314,7 @@ func (h *RequestHandler) rollbackPolicies(ids []string) {
 	for _, id := range ids {
 		_ = h.policyHandler.RemoveUserPolicy(policy.ServiceRemovePolicyModel{Id: id})
 	}
+	_ = h.policyHandler.CommitPolicy()
 }
 
 func mapPolicyChain(policyType string) (string, error) {
@@ -422,6 +425,30 @@ func toBottleForwards(forwards []container.ForwardInfo) []BottleForwardInfo {
 
 func buildBottleContainerName(bottleName string, serviceName string) string {
 	return bottleName + "-" + serviceName
+}
+
+func (h *RequestHandler) buildBottleStatus(info bsm.BottleInfo) string {
+	if len(info.Containers) == 0 {
+		return "unknown"
+	}
+	status := ""
+	for _, containerId := range info.Containers {
+		state, err := h.containerHandler.GetContainerById(containerId)
+		if err != nil {
+			return "abnormal"
+		}
+		if status == "" {
+			status = state.State
+			continue
+		}
+		if status != state.State {
+			return "abnormal"
+		}
+	}
+	if status == "" {
+		return "unknown"
+	}
+	return status
 }
 
 func normalizePolicyEndpoint(bottleName string, value string) string {
