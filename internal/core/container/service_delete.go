@@ -17,12 +17,15 @@ func (s *ContainerService) Delete(deleteParameter ServiceDeleteModel) (string, e
 		return "", fmt.Errorf("container: %s not found", deleteParameter.ContainerId)
 	}
 
-	containerState, err := s.getContainerState(containerId)
-	if err != nil {
-		return "", err
+	containerInfo, err := s.csmHandler.GetContainerById(containerId)
+	if containerInfo.BottleId != "" && !deleteParameter.OpBottle {
+		return "", fmt.Errorf(
+			"direct delete operation of container: %s is not supported as it's managed by bottle: %s.\nuse 'raind bottle rm <bottle-id|bottle-name>'",
+			deleteParameter.ContainerId, containerInfo.BottleId,
+		)
 	}
 
-	switch containerState {
+	switch containerInfo.State {
 	case "creating", "created", "stopped":
 		// 1. delete container
 		if err := s.deleteContainer(containerId); err != nil {
@@ -49,7 +52,7 @@ func (s *ContainerService) Delete(deleteParameter ServiceDeleteModel) (string, e
 			return "", fmt.Errorf("delete cgroup subtree failed: %w", err)
 		}
 	default:
-		return "", fmt.Errorf("delete operation not allowed to current container status: %s", containerState)
+		return "", fmt.Errorf("delete operation not allowed to current container status: %s", containerInfo.State)
 	}
 
 	return containerId, nil

@@ -129,14 +129,15 @@ func (s *BottleService) Create(bottleIdOrName string) (string, error) {
 			return "", err
 		}
 		createParam := container.ServiceCreateModel{
-			Image:   spec.Image,
-			Command: spec.Command,
-			Port:    spec.Ports,
-			Mount:   spec.Mount,
-			Env:     env,
-			Network: spec.Network,
-			Tty:     spec.Tty,
-			Name:    buildContainerName(info.BottleName, serviceName),
+			Image:    spec.Image,
+			Command:  spec.Command,
+			Port:     spec.Ports,
+			Mount:    spec.Mount,
+			Env:      env,
+			Network:  spec.Network,
+			Tty:      spec.Tty,
+			Name:     buildContainerName(info.BottleName, serviceName),
+			BottleId: bottleId,
 		}
 		containerId, err = s.containerService.Create(createParam)
 		if err != nil {
@@ -185,6 +186,7 @@ func (s *BottleService) Start(bottleIdOrName string) (string, error) {
 		if _, err := s.containerService.Start(container.ServiceStartModel{
 			ContainerId: containerId,
 			Tty:         spec.Tty,
+			OpBottle:    true,
 		}); err != nil {
 			return "", err
 		}
@@ -225,6 +227,7 @@ func (s *BottleService) Stop(bottleIdOrName string) (string, error) {
 		}
 		if _, err := s.containerService.Stop(container.ServiceStopModel{
 			ContainerId: containerId,
+			OpBottle:    true,
 		}); err != nil {
 			return "", err
 		}
@@ -264,6 +267,7 @@ func (s *BottleService) Delete(bottleIdOrName string) (string, error) {
 		if state == "running" {
 			if _, err := s.containerService.Stop(container.ServiceStopModel{
 				ContainerId: containerId,
+				OpBottle:    true,
 			}); err != nil {
 				return "", err
 			}
@@ -271,6 +275,7 @@ func (s *BottleService) Delete(bottleIdOrName string) (string, error) {
 
 		if _, err := s.containerService.Delete(container.ServiceDeleteModel{
 			ContainerId: containerId,
+			OpBottle:    true,
 		}); err != nil {
 			return "", err
 		}
