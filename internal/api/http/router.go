@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	certHandler "condenser/internal/api/http/cert"
 	bottleHandler "condenser/internal/api/http/bottle"
+	certHandler "condenser/internal/api/http/cert"
 	containerHandler "condenser/internal/api/http/container"
 	hookHandler "condenser/internal/api/http/hook"
 	imageHandler "condenser/internal/api/http/image"
@@ -70,9 +70,9 @@ func NewApiRouter() *chi.Mux {
 
 	// == v1 ==
 	// == bottles ==
-	r.Post("/v1/bottle", bottleHandler.RegisterBottle)                   // register bottle
-	r.Get("/v1/bottle", bottleHandler.GetBottleList)                     // get bottle list
-	r.Get("/v1/bottle/{bottleId}", bottleHandler.GetBottleDetail)        // get bottle detail
+	r.Post("/v1/bottle", bottleHandler.RegisterBottle)            // register bottle
+	r.Get("/v1/bottle", bottleHandler.GetBottleList)              // get bottle list
+	r.Get("/v1/bottle/{bottleId}", bottleHandler.GetBottleDetail) // get bottle detail
 	r.Post("/v1/bottle/{bottleId}/actions/{action}", bottleHandler.ActionBottle)
 
 	// == containers ==
@@ -86,9 +86,10 @@ func NewApiRouter() *chi.Mux {
 	r.Delete("/v1/containers/{containerId}/actions/delete", containerHandler.DeleteContainer) // delete container
 
 	// == images ==
-	r.Get("/v1/images", imageHandler.GetImageList)   // get image list
-	r.Post("/v1/images", imageHandler.PullImage)     // pull image
-	r.Delete("/v1/images", imageHandler.RemoveImage) // remove image
+	r.Get("/v1/images", imageHandler.GetImageList)      // get image list
+	r.Post("/v1/images", imageHandler.PullImage)        // pull image
+	r.Post("/v1/images/build", imageHandler.BuildImage) // build image
+	r.Delete("/v1/images", imageHandler.RemoveImage)    // remove image
 
 	// == websocket ==
 	r.Get("/v1/containers/{containerId}/attach", socketHandler.ServeHTTP)

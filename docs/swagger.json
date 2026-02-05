@@ -431,6 +431,50 @@
                 }
             }
         },
+        "/v1/images/build": {
+            "post": {
+                "description": "build image from Dripfile-like archive (tar)",
+                "consumes": [
+                    "application/x-tar"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "image"
+                ],
+                "summary": "build image",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Target image tag (e.g. myapp:latest)",
+                        "name": "tag",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Dripfile path in context (default: Dripfile)",
+                        "name": "dripfile",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bridge interface (default: raind0)",
+                        "name": "network",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/policies": {
             "get": {
                 "description": "get policy",

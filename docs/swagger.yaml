@@ -397,6 +397,35 @@ paths:
       summary: pull image
       tags:
       - image
+  /v1/images/build:
+    post:
+      consumes:
+      - application/x-tar
+      description: build image from Dripfile-like archive (tar)
+      parameters:
+      - description: Target image tag (e.g. myapp:latest)
+        in: query
+        name: tag
+        required: true
+        type: string
+      - description: 'Dripfile path in context (default: Dripfile)'
+        in: query
+        name: dripfile
+        type: string
+      - description: 'Bridge interface (default: raind0)'
+        in: query
+        name: network
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: build image
+      tags:
+      - image
   /v1/policies:
     get:
       consumes:
