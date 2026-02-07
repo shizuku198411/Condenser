@@ -432,6 +432,20 @@ paths:
       tags:
       - image
   /v1/networks:
+    get:
+      consumes:
+      - application/json
+      description: get bridge list
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: get bridge list
+      tags:
+      - Network
     post:
       consumes:
       - application/json

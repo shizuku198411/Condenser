@@ -94,6 +94,7 @@ func NewApiRouter() *chi.Mux {
 	r.Delete("/v1/images", imageHandler.RemoveImage)    // remove image
 
 	// == network ==
+	r.Get("/v1/networks", networkHandler.GetNetworkList)                          // list network
 	r.Post("/v1/networks", networkHandler.CreateBridge)                           // create network
 	r.Delete("/v1/networks/{bridge}/actions/delete", networkHandler.DeleteBridge) // delete network
 

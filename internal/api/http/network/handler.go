@@ -3,6 +3,8 @@ package network
 import (
 	apimodel "condenser/internal/api/http/utils"
 	"condenser/internal/core/network"
+	"condenser/internal/store/ipam"
+	"condenser/internal/utils"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -11,11 +13,32 @@ import (
 func NewRequestHandler() *RequestHandler {
 	return &RequestHandler{
 		serviceHandler: network.NewNetworkService(),
+		ipamHandler:    ipam.NewIpamManager(ipam.NewIpamStore(utils.IpamStorePath)),
 	}
 }
 
 type RequestHandler struct {
 	serviceHandler network.NetworkServiceHandler
+	ipamHandler    ipam.IpamHandler
+}
+
+// GetNetworkList godoc
+// @Summary get bridge list
+// @Description get bridge list
+// @Tags Network
+// @Accept json
+// @Produce json
+// @Success 200 {object} apimodel.ApiResponse
+// @Router /v1/networks [get]
+func (h *RequestHandler) GetNetworkList(w http.ResponseWriter, r *http.Request) {
+	networkList, err := h.ipamHandler.GetNetworkList()
+	if err != nil {
+		apimodel.RespondFail(w, http.StatusInternalServerError, "get network list failed", nil)
+		return
+	}
+
+	// encode response
+	apimodel.RespondSuccess(w, http.StatusOK, "network list", networkList)
 }
 
 // CreateBridge godoc

@@ -76,6 +76,19 @@ func (s *NetworkService) CreateNewNetwork(param ServiceNewNetworkModel) (err err
 }
 
 func (s *NetworkService) RemoveNetwork(param ServiceRemoveNetworkModel) error {
+	// check containers in network
+	networkList, err := s.ipamHandler.GetNetworkList()
+	if err != nil {
+		return err
+	}
+	for _, n := range networkList {
+		if n.Interface != param.Bridge {
+			continue
+		}
+		if n.NumContainers != 0 {
+			return fmt.Errorf("network: %s contains existing container", param.Bridge)
+		}
+	}
 	// 1. remove bridge
 	if err := s.RemoveBridgeInterface(param.Bridge); err != nil {
 		return err

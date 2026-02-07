@@ -71,8 +71,9 @@ func (m *IpamManager) GetNetworkList() ([]NetworkList, error) {
 	err := m.ipamStore.withRLock(func(st *IpamState) error {
 		for _, p := range st.Pools {
 			networkList = append(networkList, NetworkList{
-				Interface: p.Interface,
-				Address:   p.Address,
+				Interface:     p.Interface,
+				Address:       p.Address,
+				NumContainers: len(p.Allocations),
 			})
 		}
 		if len(networkList) == 0 {

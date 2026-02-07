@@ -487,6 +487,27 @@ const docTemplate = `{
             }
         },
         "/v1/networks": {
+            "get": {
+                "description": "get bridge list",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network"
+                ],
+                "summary": "get bridge list",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
             "post": {
                 "description": "create new bridge",
                 "consumes": [
