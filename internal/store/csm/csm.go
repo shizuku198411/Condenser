@@ -15,7 +15,7 @@ type CsmManager struct {
 	csmStore *CsmStore
 }
 
-func (m *CsmManager) StoreContainer(containerId string, state string, pid int, tty bool, repo, ref string, command []string, name string) error {
+func (m *CsmManager) StoreContainer(containerId string, state string, pid int, tty bool, repo, ref string, command []string, name string, bottleId string) error {
 	return m.csmStore.withLock(func(st *ContainerState) error {
 		st.Containers[containerId] = ContainerInfo{
 			ContainerId:   containerId,
@@ -25,6 +25,7 @@ func (m *CsmManager) StoreContainer(containerId string, state string, pid int, t
 			Tty:           tty,
 			Repository:    repo,
 			Reference:     ref,
+			BottleId:      bottleId,
 			Command:       command,
 			CreatedAt:     time.Now(),
 		}
@@ -54,9 +55,13 @@ func (m *CsmManager) UpdateContainer(containerId string, state string, pid int) 
 		c.State = state
 		switch state {
 		case "creating":
-			c.CreatingAt = time.Now()
+			if c.CreatedAt.After(c.StoppedAt) {
+				c.CreatingAt = time.Now()
+			}
 		case "created":
-			c.CreatedAt = time.Now()
+			if c.CreatedAt.After(c.StoppedAt) {
+				c.CreatedAt = time.Now()
+			}
 		case "running":
 			c.StartedAt = time.Now()
 		case "stopped":

@@ -17,6 +17,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -348,6 +349,7 @@ type Enricher struct {
 	muOut sync.Mutex
 	out   *os.File
 	bw    *bufio.Writer
+	size  int64
 }
 
 func (e *Enricher) OpenOutput() error {
@@ -358,8 +360,13 @@ func (e *Enricher) OpenOutput() error {
 	if err != nil {
 		return err
 	}
+	var size int64
+	if st, err := f.Stat(); err == nil {
+		size = st.Size()
+	}
 	e.out = f
 	e.bw = bufio.NewWriterSize(f, 256*1024)
+	e.size = size
 	return nil
 }
 
@@ -391,9 +398,13 @@ func (e *Enricher) HandleRawLine(line []byte) {
 
 	e.muOut.Lock()
 	defer e.muOut.Unlock()
+	if err := e.rotateIfNeeded(int64(len(b) + 1)); err != nil {
+		return
+	}
 	_, _ = e.bw.Write(b)
 	_, _ = e.bw.WriteString("\n")
 	_ = e.bw.Flush()
+	e.size += int64(len(b) + 1)
 }
 
 func (e *Enricher) enrich(rr RawRecord, rawLine []byte) Enriched {
@@ -460,6 +471,7 @@ func (e *Enricher) enrich(rr RawRecord, rawLine []byte) Enriched {
 	out := Enriched{
 		GeneratedTS: genTs,
 		ReceivedTS:  now,
+		EventType:   "log.netflow",
 		Policy:      policy,
 		Kind:        kind,
 		Verdict:     verdict,
@@ -501,6 +513,54 @@ func (e *Enricher) enrich(rr RawRecord, rawLine []byte) Enriched {
 	}
 
 	return out
+}
+
+const (
+	enrichedMaxBytes   = 50 * 1024 * 1024
+	enrichedMaxBackups = 5
+)
+
+func (e *Enricher) rotateIfNeeded(nextBytes int64) error {
+	if enrichedMaxBytes <= 0 {
+		return nil
+	}
+	if e.size+nextBytes <= enrichedMaxBytes {
+		return nil
+	}
+	return e.rotate()
+}
+
+func (e *Enricher) rotate() error {
+	if e.bw != nil {
+		_ = e.bw.Flush()
+	}
+	if e.out != nil {
+		_ = e.out.Close()
+	}
+
+	if enrichedMaxBackups > 0 {
+		last := e.OutPath + "." + strconv.Itoa(enrichedMaxBackups)
+		_ = os.Remove(last)
+		for i := enrichedMaxBackups - 1; i >= 1; i-- {
+			src := e.OutPath + "." + strconv.Itoa(i)
+			dst := e.OutPath + "." + strconv.Itoa(i+1)
+			if _, err := os.Stat(src); err == nil {
+				_ = os.Rename(src, dst)
+			}
+		}
+		_ = os.Rename(e.OutPath, e.OutPath+".1")
+	} else {
+		_ = os.Remove(e.OutPath)
+	}
+
+	f, err := os.OpenFile(e.OutPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0640)
+	if err != nil {
+		return err
+	}
+	e.out = f
+	e.bw = bufio.NewWriterSize(f, 256*1024)
+	e.size = 0
+	return nil
 }
 
 func (e *Enricher) isInRuntimeSubnet(ipStr string) bool {

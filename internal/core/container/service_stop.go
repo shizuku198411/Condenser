@@ -13,19 +13,22 @@ func (s *ContainerService) Stop(stopParameter ServiceStopModel) (string, error) 
 		return "", fmt.Errorf("container: %s not found", stopParameter.ContainerId)
 	}
 
-	containerState, err := s.getContainerState(containerId)
-	if err != nil {
-		return "", err
+	containerInfo, err := s.csmHandler.GetContainerById(containerId)
+	if containerInfo.BottleId != "" && !stopParameter.OpBottle {
+		return "", fmt.Errorf(
+			"direct operation of container: %s is not supported as it's managed by bottle: %s.\nuse 'raind bottle stop <bottle-id|bottle-name>'",
+			stopParameter.ContainerId, containerInfo.BottleId,
+		)
 	}
 
-	switch containerState {
+	switch containerInfo.State {
 	case "running":
 		// stop container
 		if err := s.stopContainer(containerId); err != nil {
 			return "", fmt.Errorf("stop failed: %w", err)
 		}
 	default:
-		return "", fmt.Errorf("stop operation not allowed to current container status: %s", containerState)
+		return "", fmt.Errorf("stop operation not allowed to current container status: %s", containerInfo.State)
 	}
 	return containerId, nil
 }

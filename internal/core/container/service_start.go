@@ -13,12 +13,15 @@ func (s *ContainerService) Start(startParameter ServiceStartModel) (string, erro
 		return "", fmt.Errorf("container: %s not found", startParameter.ContainerId)
 	}
 
-	containerState, err := s.getContainerState(containerId)
-	if err != nil {
-		return "", err
+	containerInfo, err := s.csmHandler.GetContainerById(containerId)
+	if containerInfo.BottleId != "" && !startParameter.OpBottle {
+		return "", fmt.Errorf(
+			"direct operation of container: %s is not supported as it's managed by bottle: %s.\nuse 'raind bottle start <bottle-id|bottle-name>'",
+			startParameter.ContainerId, containerInfo.BottleId,
+		)
 	}
 
-	switch containerState {
+	switch containerInfo.State {
 	case "created":
 		// start container
 		if err := s.startContainer(containerId, startParameter.Tty); err != nil {
@@ -30,17 +33,22 @@ func (s *ContainerService) Start(startParameter ServiceStartModel) (string, erro
 		return "", fmt.Errorf("container: %s already started", containerId)
 
 	case "stopped":
+		// get tty flag
+		containerInfo, err := s.csmHandler.GetContainerById(containerId)
+		if err != nil {
+			return "", err
+		}
 		// create container
-		if err := s.createContainer(containerId, startParameter.Tty); err != nil {
+		if err := s.createContainer(containerId, containerInfo.Tty); err != nil {
 			return "", fmt.Errorf("start container failed: %w", err)
 		}
 		// start container
-		if err := s.startContainer(containerId, startParameter.Tty); err != nil {
+		if err := s.startContainer(containerId, containerInfo.Tty); err != nil {
 			return "", fmt.Errorf("start container failed: %w", err)
 		}
 
 	default:
-		return "", fmt.Errorf("start operation not allowed to current container status: %s", containerState)
+		return "", fmt.Errorf("start operation not allowed to current container status: %s", containerInfo.State)
 	}
 
 	return containerId, nil

@@ -12,6 +12,13 @@ type ServiceRemoveModel struct {
 	Image string
 }
 
+type ServiceBuildModel struct {
+	Image        string
+	ContextDir   string
+	DripfilePath string
+	Network      string
+}
+
 // image bundle object
 type ImageConfigObject struct {
 	Env        []string `json:"Env"`

@@ -85,7 +85,17 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	} else {
 		command = slices.Concat(imageConfig.Config.Entrypoint, imageConfig.Config.Cmd)
 	}
-	if err := s.csmHandler.StoreContainer(containerId, "creating", 0, createParameter.Tty, imageRepo, imageRef, command, containerName); err != nil {
+	if err := s.csmHandler.StoreContainer(
+		containerId,
+		"creating",
+		0,
+		createParameter.Tty,
+		imageRepo,
+		imageRef,
+		command,
+		containerName,
+		createParameter.BottleId,
+	); err != nil {
 		return "", err
 	}
 	rollbackFlag.CSMEntry = true
@@ -97,7 +107,7 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	rollbackFlag.DirectoryEnv = true
 
 	// 8. setup etc files
-	if err := s.setupEtcFiles(containerId, containerAddr); err != nil {
+	if err := s.setupEtcFiles(containerId, containerAddr, containerGateway); err != nil {
 		return "", fmt.Errorf("setup etc files failed: %w", err)
 	}
 
@@ -227,7 +237,7 @@ func (s *ContainerService) setupContainerDirectory(containerId string) error {
 	return nil
 }
 
-func (s *ContainerService) setupEtcFiles(containerId string, containerAddr string) error {
+func (s *ContainerService) setupEtcFiles(containerId string, containerAddr string, containerGateway string) error {
 	etcDir := filepath.Join(utils.ContainerRootDir, containerId, "etc")
 
 	// /etc/hosts
@@ -246,7 +256,7 @@ func (s *ContainerService) setupEtcFiles(containerId string, containerAddr strin
 
 	// /etc/resolv.conf
 	resolvPath := filepath.Join(etcDir, "resolv.conf")
-	resolvData := "nameserver 8.8.8.8\n"
+	resolvData := "nameserver " + containerGateway + "\n"
 	if err := s.filesystemHandler.WriteFile(resolvPath, []byte(resolvData), 0o644); err != nil {
 		return err
 	}

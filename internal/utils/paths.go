@@ -12,6 +12,7 @@ const (
 	CsmStorePath  = "/etc/raind/store/csm.json"
 	IlmStorePath  = "/etc/raind/store/ilm.json"
 	NpmStorePath  = "/etc/raind/store/npm.json"
+	BsmStorePath  = "/etc/raind/store/bsm.json"
 
 	CgroupRuntimeDir         = "/sys/fs/cgroup/raind"
 	CgroupSubtreeControlPath = "/sys/fs/cgroup/raind/cgroup.subtree_control"
@@ -26,7 +27,9 @@ const (
 	HookClientCertPath     = "/etc/raind/cert/raindHookClient.crt"
 	HookClientKeyPath      = "/etc/raind/cert/raindHookClient.key"
 
-	AuditLogPath    = "/etc/raind/log/raind_audit.log"
 	UlogPath        = "/var/log/ulog/raind.jsonl"
-	EnrichedLogPath = "/var/log/raind/netflow.jsonl"
+	AuditLogPath    = "/var/log/raind/raind_audit.jsonl"
+	EnrichedLogPath = "/var/log/raind/raind_netflow.jsonl"
+	DnsLogPath      = "/var/log/raind/raind_dns.jsonl"
+	MetricsLogPath  = "/var/log/raind/raind_metrics.jsonl"
 )

@@ -1,8 +1,10 @@
 package network
 
 import (
+	"condenser/internal/core/policy"
 	"condenser/internal/store/ipam"
 	"condenser/internal/utils"
+	"fmt"
 	"slices"
 	"strconv"
 )
@@ -11,12 +13,98 @@ func NewNetworkService() *NetworkService {
 	return &NetworkService{
 		commandFactory: utils.NewCommandFactory(),
 		ipamHandler:    ipam.NewIpamManager(ipam.NewIpamStore(utils.IpamStorePath)),
+		policyHandler:  policy.NewwServicePolicy(),
 	}
 }
 
 type NetworkService struct {
 	commandFactory utils.CommandFactory
 	ipamHandler    ipam.IpamHandler
+	policyHandler  policy.PolicyServiceHandler
+}
+
+type RollbackFlag struct {
+	StoreIpam             bool
+	CreateBridgeInterface bool
+}
+
+func (s *NetworkService) CreateNewNetwork(param ServiceNewNetworkModel) (err error) {
+	var rollback RollbackFlag
+	defer func() error {
+		if err != nil {
+			if rollback.StoreIpam {
+				rberr := s.ipamHandler.RemoveBridge(param.Bridge)
+				if rberr != nil {
+					return fmt.Errorf("rollback failed: " + rberr.Error())
+				}
+			}
+			if rollback.CreateBridgeInterface {
+				rberr := s.RemoveBridgeInterface(param.Bridge)
+				if rberr != nil {
+					return fmt.Errorf("rollback failed: " + rberr.Error())
+				}
+			}
+			rberr := s.policyHandler.CommitPolicy()
+			if rberr != nil {
+				return fmt.Errorf("rollback failed: " + rberr.Error())
+			}
+			return err
+		}
+		return nil
+	}()
+
+	// 1. store ipam
+	_, addr, err := s.ipamHandler.StoreBridge(param.Bridge)
+	if err != nil {
+		return err
+	}
+	rollback.StoreIpam = true
+
+	// 2. create bridge interface
+	err = s.CreateBridgeInterface(param.Bridge, addr)
+	if err != nil {
+		return err
+	}
+	rollback.CreateBridgeInterface = true
+
+	// 3. refresh policy
+	err = s.policyHandler.CommitPolicy()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *NetworkService) RemoveNetwork(param ServiceRemoveNetworkModel) error {
+	// check containers in network
+	networkList, err := s.ipamHandler.GetNetworkList()
+	if err != nil {
+		return err
+	}
+	for _, n := range networkList {
+		if n.Interface != param.Bridge {
+			continue
+		}
+		if n.NumContainers != 0 {
+			return fmt.Errorf("network: %s contains existing container", param.Bridge)
+		}
+	}
+	// 1. remove bridge
+	if err := s.RemoveBridgeInterface(param.Bridge); err != nil {
+		return err
+	}
+
+	// 2. remove store
+	if err := s.ipamHandler.RemoveBridge(param.Bridge); err != nil {
+		return err
+	}
+
+	// 3. refresh policy
+	if err := s.policyHandler.CommitPolicy(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *NetworkService) CreateBridgeInterface(ifname string, addr string) error {
@@ -46,6 +134,22 @@ func (s *NetworkService) CreateBridgeInterface(ifname string, addr string) error
 	return nil
 }
 
+func (s *NetworkService) RemoveBridgeInterface(ifname string) error {
+	// check if bridge exist
+	check := s.commandFactory.Command("ip", "link", "show", ifname)
+	if err := check.Run(); err != nil {
+		// bridge not exist
+		return fmt.Errorf("bridge: %s not found", ifname)
+	}
+
+	// remove bridge
+	remove := s.commandFactory.Command("ip", "link", "del", ifname)
+	if err := remove.Run(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *NetworkService) CreateMasqueradeRule(src string, dst string) error {
 	// check if rule already exist
 	check := s.commandFactory.Command("iptables", "-t", "nat", "-C", "POSTROUTING", "-s", src, "-o", dst, "-j", "MASQUERADE")
@@ -58,6 +162,28 @@ func (s *NetworkService) CreateMasqueradeRule(src string, dst string) error {
 	add := s.commandFactory.Command("iptables", "-t", "nat", "-A", "POSTROUTING", "-s", src, "-o", dst, "-j", "MASQUERADE")
 	if err := add.Run(); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (s *NetworkService) CreateRedirectDnsTrafficRule(forwarderIf string, forwarderAddr string) error {
+	// check if rule already exist
+	check1 := s.commandFactory.Command("iptables", "-t", "nat", "-C", "PREROUTING", "-i", forwarderIf, "-p", "udp", "--dport", "53", "-j", "DNAT", "--to-destination", forwarderAddr+":1053")
+	if err := check1.Run(); err != nil {
+		// rule not exist, create rule
+		add1 := s.commandFactory.Command("iptables", "-t", "nat", "-A", "PREROUTING", "-i", forwarderIf, "-p", "udp", "--dport", "53", "-j", "DNAT", "--to-destination", forwarderAddr+":1053")
+		if err := add1.Run(); err != nil {
+			return err
+		}
+	}
+
+	check2 := s.commandFactory.Command("iptables", "-t", "nat", "-C", "PREROUTING", "-i", forwarderIf, "-p", "tcp", "--dport", "53", "-j", "DNAT", "--to-destination", forwarderAddr+":1053")
+	if err := check2.Run(); err != nil {
+		// rule not exist, create rule
+		add2 := s.commandFactory.Command("iptables", "-t", "nat", "-A", "PREROUTING", "-i", forwarderIf, "-p", "tcp", "--dport", "53", "-j", "DNAT", "--to-destination", forwarderAddr+":1053")
+		if err := add2.Run(); err != nil {
+			return err
+		}
 	}
 	return nil
 }

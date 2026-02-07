@@ -5,7 +5,7 @@ type CsmStoreHandler interface {
 }
 
 type CsmHandler interface {
-	StoreContainer(containerId string, state string, pid int, tty bool, repo, ref string, command []string, name string) error
+	StoreContainer(containerId string, state string, pid int, tty bool, repo, ref string, command []string, name string, bottleId string) error
 	RemoveContainer(containerId string) error
 	UpdateContainer(containerId string, state string, pid int) error
 	UpdateSpiffe(containerId string, spiffe string) error

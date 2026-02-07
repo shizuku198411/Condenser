@@ -68,14 +68,27 @@ type Handler struct {
 
 // ServeHTTP handles GET /containers/{id}/attach (WebSocket)
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	containerId := chi.URLParam(r, "containerId")
-	if containerId == "" {
+	target := chi.URLParam(r, "containerId")
+	if target == "" {
 		http.Error(w, "missing container id", http.StatusBadRequest)
 		return
 	}
-	containerId, err := h.csmHandler.ResolveContainerId(containerId)
+	containerId, err := h.csmHandler.ResolveContainerId(target)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("container: %s not found", containerId), http.StatusBadRequest)
+		return
+	}
+
+	containerInfo, err := h.csmHandler.GetContainerById(containerId)
+	if r.URL.Path == "/v1/containers/"+target+"/attach" && !containerInfo.Tty {
+		http.Error(
+			w,
+			fmt.Sprintf(
+				"container: %s has tty mode disabled.\nif attach operation needed, use -t option when create container",
+				target,
+			),
+			http.StatusBadRequest,
+		)
 		return
 	}
 

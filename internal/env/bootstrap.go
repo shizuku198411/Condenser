@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -28,6 +29,7 @@ func NewBootstrapManager() *BootstrapManager {
 		ipamStoreHandler:  ipam.NewIpamStore(utils.IpamStorePath),
 		ipamHandler:       ipam.NewIpamManager(ipam.NewIpamStore(utils.IpamStorePath)),
 		csmStoreHandler:   csm.NewCsmStore(utils.CsmStorePath),
+		csmHandler:        csm.NewCsmManager(csm.NewCsmStore(utils.CsmStorePath)),
 		ilmStoreHandler:   ilm.NewIlmStore(utils.IlmStorePath),
 		npmStoreHandler:   npm.NewNpmStore(utils.NpmStorePath),
 		appArmorHandler:   lsm.NewAppArmorManager(),
@@ -43,6 +45,7 @@ type BootstrapManager struct {
 	ipamStoreHandler  ipam.IpamStoreHandler
 	ipamHandler       ipam.IpamHandler
 	csmStoreHandler   csm.CsmStoreHandler
+	csmHandler        csm.CsmHandler
 	ilmStoreHandler   ilm.IlmStoreHandler
 	npmStoreHandler   npm.NpmStoreHandler
 	appArmorHandler   lsm.AppArmorHandler
@@ -51,11 +54,6 @@ type BootstrapManager struct {
 func (m *BootstrapManager) SetupRuntime() error {
 	// 1. create runtime directory
 	if err := m.setupRuntimeDirectory(); err != nil {
-		return err
-	}
-
-	// 2. setup cgroup
-	if err := m.setupCgroup(); err != nil {
 		return err
 	}
 
@@ -79,6 +77,10 @@ func (m *BootstrapManager) SetupRuntime() error {
 		return err
 	}
 
+	// 2. setup cgroup
+	if err := m.setupCgroup(); err != nil {
+		return err
+	}
 	// 7. setup certificate
 	if err := m.setupCertificate(); err != nil {
 		return err
@@ -130,6 +132,11 @@ func (m *BootstrapManager) setupCgroup() error {
 		return err
 	}
 
+	// 3. create existing container's directory
+	if err := m.createContainerCgroup(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -152,6 +159,7 @@ func (m *BootstrapManager) enableCgroupControllers() error {
 		"cpu",
 		"memory",
 		"pids",
+		"io",
 	}
 	for _, c := range controllers {
 		if enabled[c] {
@@ -162,6 +170,19 @@ func (m *BootstrapManager) enableCgroupControllers() error {
 		}
 	}
 
+	return nil
+}
+
+func (m *BootstrapManager) createContainerCgroup() error {
+	containerList, err := m.csmHandler.GetContainerList()
+	if err != nil {
+		return err
+	}
+	for _, c := range containerList {
+		if err := m.filesystemHandler.MkdirAll(filepath.Join(utils.CgroupRuntimeDir, c.ContainerId), 0o755); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -243,7 +264,10 @@ func (m *BootstrapManager) setupNetwork() error {
 		return err
 	}
 
-	// 4. setup chain
+	// 4. setup dns proxy
+	if err := m.setupDnsProxy(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -318,6 +342,42 @@ func (m *BootstrapManager) createManagementProtectRule() error {
 		return err
 	}
 
+	return nil
+}
+
+func (m *BootstrapManager) setupDnsProxy() error {
+	proxyIf, proxyAddr, _, err := m.ipamHandler.GetDnsProxyInfo()
+	if err != nil {
+		return err
+	}
+	// 1. create dns proxy interface
+	if err := m.createDnsProxyInterface(proxyIf, proxyAddr); err != nil {
+		return err
+	}
+	// 2. create redirect from container:53 to proxy:1053
+	if err := m.createRedirectDnsRule(proxyAddr); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *BootstrapManager) createDnsProxyInterface(ifname string, addr string) error {
+	if err := m.networkHandler.CreateBridgeInterface(ifname, addr); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *BootstrapManager) createRedirectDnsRule(addr string) error {
+	networkList, err := m.ipamHandler.GetNetworkList()
+	if err != nil {
+		return err
+	}
+	for _, n := range networkList {
+		if err := m.networkHandler.CreateRedirectDnsTrafficRule(n.Interface, addr); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

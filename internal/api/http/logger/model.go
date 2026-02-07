@@ -7,7 +7,7 @@ type Logger interface {
 }
 
 type Event struct {
-	TS            string `json:"ts"`
+	TS            string `json:"generated_ts"`
 	EventId       string `json:"event_id"`
 	CorrelationId string `json:"correlation_id,omitempty"`
 	Severity      string `json:"severity"`
@@ -120,6 +120,7 @@ var rules = []Rule{
 	// image
 	{"GET", "/v1/images", "image.list", SEV_INFO},
 	{"POST", "/v1/images", "image.pull", SEV_MEDIUM},
+	{"POST", "/v1/images/build", "image.build", SEV_HIGH},
 	{"DELETE", "/v1/images", "image.remove", SEV_HIGH},
 
 	// policy

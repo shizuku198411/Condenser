@@ -25,6 +25,13 @@ type ContainerMonitor struct {
 
 func (m *ContainerMonitor) Start() error {
 	resolver := NewResolver(m.csmHandler)
+	metricsWriter, err := NewMetricsWriter(utils.MetricsLogPath)
+	if err != nil {
+		return err
+	}
+	defer metricsWriter.Close()
+	prevCPU := map[string]CgroupCPUUsageSample{}
+
 	// watch CSM file update
 	go func() {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -34,9 +41,12 @@ func (m *ContainerMonitor) Start() error {
 		}
 	}()
 
-	for {
-		time.Sleep(100 * time.Millisecond)
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	metricTick := 0
 
+	for range ticker.C {
+		metricTick++
 		for _, container := range resolver.ResolveMap {
 			// status check
 			// monitoring target: created, running
@@ -55,9 +65,96 @@ func (m *ContainerMonitor) Start() error {
 				); err != nil {
 					continue
 				}
+				continue
+			}
+
+			if container.Status != "running" {
+				continue
+			}
+
+			if metricTick%10 == 0 {
+				record, sample, err := buildMetricsRecord(container, prevCPU[container.ContainerId])
+				if err != nil {
+					log.Printf("metrics build failed: container=%s err=%v", container.ContainerId, err)
+					continue
+				}
+				prevCPU[container.ContainerId] = sample
+				if err := metricsWriter.WriteJSONL(record); err != nil {
+					log.Printf("metrics write failed: container=%s err=%v", container.ContainerId, err)
+				}
 			}
 		}
 	}
+	return nil
+}
+
+func buildMetricsRecord(container ContainerMeta, prev CgroupCPUUsageSample) (MetricsRecord, CgroupCPUUsageSample, error) {
+	cgroupPath := CgroupV2Path(container.ContainerId)
+
+	cpuStat, err := ReadCgroupCPUStat(cgroupPath)
+	if err != nil {
+		return MetricsRecord{}, CgroupCPUUsageSample{}, err
+	}
+	cpuQuota, err := ReadCgroupCPUQuota(cgroupPath)
+	if err != nil {
+		return MetricsRecord{}, CgroupCPUUsageSample{}, err
+	}
+	curSample := CgroupCPUUsageSample{
+		UsageUsec: cpuStat.UsageUsec,
+		Timestamp: time.Now(),
+	}
+	cpuPercent := 0.0
+	if !prev.Timestamp.IsZero() {
+		cpuPercent = CgroupCPUPercent(prev, curSample, cpuQuota)
+	}
+	memStat, err := ReadCgroupMemoryStat(cgroupPath)
+	if err != nil {
+		return MetricsRecord{}, CgroupCPUUsageSample{}, err
+	}
+	ioStat, err := ReadCgroupIOStat(cgroupPath)
+	if err != nil {
+		return MetricsRecord{}, CgroupCPUUsageSample{}, err
+	}
+	memEvents, err := ReadCgroupMemoryEvents(cgroupPath)
+	if err != nil {
+		return MetricsRecord{}, CgroupCPUUsageSample{}, err
+	}
+	memPercent, memLimited := CgroupMemoryPercent(memStat)
+
+	return MetricsRecord{
+		GeneratedTS: time.Now().Format(time.RFC3339Nano),
+
+		ContainerID:   container.ContainerId,
+		ContainerName: container.ContainerName,
+		SpiffeID:      container.SpiffeId,
+		Pid:           container.Pid,
+		Status:        container.Status,
+		CgroupPath:    cgroupPath,
+
+		CPUUsageUsec:     cpuStat.UsageUsec,
+		CPUUserUsec:      cpuStat.UserUsec,
+		CPUSystemUsec:    cpuStat.SystemUsec,
+		CPUNrPeriods:     cpuStat.NrPeriods,
+		CPUNrThrottled:   cpuStat.NrThrottled,
+		CPUThrottledUsec: cpuStat.ThrottledUsec,
+		CPUQuotaUsec:     cpuQuota.QuotaUsec,
+		CPUPeriodUsec:    cpuQuota.PeriodUsec,
+		CPUUnlimited:     cpuQuota.Unlimited,
+		CPUPercent:       cpuPercent,
+
+		MemoryCurrentBytes: memStat.CurrentBytes,
+		MemoryMaxBytes:     memStat.MaxBytes,
+		MemoryLimited:      memLimited,
+		MemoryPercent:      memPercent,
+
+		IOReadBytes:  ioStat.RBytes,
+		IOWriteBytes: ioStat.WBytes,
+		IOReadOps:    ioStat.RIOs,
+		IOWriteOps:   ioStat.WIOs,
+
+		MemoryOOM:     memEvents.OOM,
+		MemoryOOMKill: memEvents.OOMKill,
+	}, curSample, nil
 }
 
 func (m *ContainerMonitor) pidAlive(pid int) (bool, error) {

@@ -1,6 +1,7 @@
 package ipam
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"strings"
@@ -70,8 +71,9 @@ func (m *IpamManager) GetNetworkList() ([]NetworkList, error) {
 	err := m.ipamStore.withRLock(func(st *IpamState) error {
 		for _, p := range st.Pools {
 			networkList = append(networkList, NetworkList{
-				Interface: p.Interface,
-				Address:   p.Address,
+				Interface:     p.Interface,
+				Address:       p.Address,
+				NumContainers: len(p.Allocations),
 			})
 		}
 		if len(networkList) == 0 {
@@ -121,6 +123,97 @@ func (m *IpamManager) GetDefaultInterfaceAddr() (string, error) {
 	return defaultInterfaceAddr, err
 }
 
+func (m *IpamManager) StoreBridge(bridge string) (string, string, error) {
+	var (
+		bridgeSubnet string
+		bridgeAddr   string
+	)
+	err := m.ipamStore.withLock(func(st *IpamState) error {
+		for _, p := range st.Pools {
+			if p.Interface == bridge {
+				return fmt.Errorf("interface: %s is already created", bridge)
+			}
+		}
+
+		if st.RuntimeSubnet == "" {
+			return fmt.Errorf("runtime subnet is not configured")
+		}
+
+		_, runtimeNet, err := net.ParseCIDR(st.RuntimeSubnet)
+		if err != nil {
+			return fmt.Errorf("invalid runtime subnet: %w", err)
+		}
+		if runtimeNet.IP.To4() == nil {
+			return fmt.Errorf("runtime subnet must be ipv4")
+		}
+		if ones, _ := runtimeNet.Mask.Size(); ones > 24 {
+			return fmt.Errorf("runtime subnet prefix must be <= /24: %s", runtimeNet.String())
+		}
+
+		usedSubnets := make(map[string]struct{}, len(st.Pools))
+		for _, p := range st.Pools {
+			_, poolNet, parseErr := net.ParseCIDR(p.Subnet)
+			if parseErr != nil {
+				return fmt.Errorf("invalid pool subnet: %s", p.Subnet)
+			}
+			if poolNet.IP.To4() == nil {
+				return fmt.Errorf("pool subnet must be ipv4: %s", p.Subnet)
+			}
+			usedSubnets[poolNet.String()] = struct{}{}
+		}
+
+		mask24 := net.CIDRMask(24, 32)
+		start := runtimeNet.IP.Mask(runtimeNet.Mask).To4()
+		if start == nil {
+			return fmt.Errorf("runtime subnet must be ipv4")
+		}
+
+		for ip := start; runtimeNet.Contains(ip); ip = ipv4Add(ip, 256) {
+			subnetNet := &net.IPNet{IP: ip, Mask: mask24}
+			if !runtimeNet.Contains(broadcastIPv4(subnetNet)) {
+				break
+			}
+			subnet := subnetNet.String()
+			if _, used := usedSubnets[subnet]; used {
+				continue
+			}
+			addr := fmt.Sprintf("%s/24", ipv4Add(ip, 254).String())
+			st.Pools = append(st.Pools, Pool{
+				Interface:   bridge,
+				Subnet:      subnet,
+				Address:     addr,
+				Allocations: map[string]Allocation{},
+			})
+			bridgeSubnet = subnet
+			bridgeAddr = addr
+			return nil
+		}
+		return fmt.Errorf("no available /24 subnet in runtime subnet: %s", runtimeNet.String())
+	})
+	return bridgeSubnet, bridgeAddr, err
+}
+
+func (m *IpamManager) RemoveBridge(bridge string) error {
+	return m.ipamStore.withLock(func(st *IpamState) error {
+		var (
+			newPools   []Pool
+			removeFlag bool
+		)
+		for _, p := range st.Pools {
+			if p.Interface == bridge {
+				removeFlag = true
+				continue
+			}
+			newPools = append(newPools, p)
+		}
+		if !removeFlag {
+			return fmt.Errorf("bridge: %s not found", bridge)
+		}
+		st.Pools = newPools
+		return nil
+	})
+}
+
 func (m *IpamManager) GetBridgeAddr(bridgeInterface string) (string, error) {
 	var bridgeAddr string
 
@@ -158,6 +251,25 @@ func (m *IpamManager) GetContainerAddress(containerId string) (string, string, s
 		return fmt.Errorf("container: %s not found", containerId)
 	})
 	return hostInterface, bridgeInterface, containerAddr, err
+}
+
+func (m *IpamManager) GetDnsProxyInfo() (string, string, []string, error) {
+	var (
+		dnsProxyInterface string
+		dnsProxyAddr      string
+		upstreams         []string
+	)
+
+	err := m.ipamStore.withRLock(func(st *IpamState) error {
+		dnsProxyInterface = st.DnsProxy.DnsProxyInterface
+		dnsProxyAddr = st.DnsProxy.DnsProxyAddr
+		upstreams = st.DnsProxy.Upstreams
+		if dnsProxyInterface == "" || dnsProxyAddr == "" || len(upstreams) == 0 {
+			return fmt.Errorf("Dns Proxy not configured")
+		}
+		return nil
+	})
+	return dnsProxyInterface, dnsProxyAddr, upstreams, err
 }
 
 func (m *IpamManager) SetForwardInfo(containerId string, sport, dport int, protocol string) error {
@@ -323,6 +435,14 @@ func incIP(ip net.IP) net.IP {
 		}
 	}
 	return v
+}
+
+func ipv4Add(ip net.IP, add uint32) net.IP {
+	v := binary.BigEndian.Uint32(ip.To4())
+	v += add
+	out := make(net.IP, 4)
+	binary.BigEndian.PutUint32(out, v)
+	return out
 }
 
 func broadcastIPv4(ipnet *net.IPNet) net.IP {

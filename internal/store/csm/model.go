@@ -12,6 +12,7 @@ type ContainerInfo struct {
 	Repository    string    `json:"imageRepository"`
 	Reference     string    `json:"imageReference"`
 	Command       []string  `json:"command"`
+	BottleId      string    `json:"bottleId,omitempty"`
 	CreatingAt    time.Time `json:"creatingAt"`
 	CreatedAt     time.Time `json:"createdAt"`
 	StartedAt     time.Time `json:"statedAt"`

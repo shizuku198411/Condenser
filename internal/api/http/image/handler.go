@@ -3,6 +3,9 @@ package image
 import (
 	"condenser/internal/core/image"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 
 	apimodel "condenser/internal/api/http/utils"
 )
@@ -77,6 +80,65 @@ func (h *RequestHandler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 
 	// encode response
 	apimodel.RespondSuccess(w, http.StatusOK, "remove completed", req)
+}
+
+// BuildImage godoc
+// @Summary build image
+// @Description build image from Dripfile-like archive (tar)
+// @Tags image
+// @Accept application/x-tar
+// @Produce json
+// @Param tag query string true "Target image tag (e.g. myapp:latest)"
+// @Param dripfile query string false "Dripfile path in context (default: Dripfile)"
+// @Param network query string false "Bridge interface (default: raind0)"
+// @Success 200 {object} apimodel.ApiResponse
+// @Router /v1/images/build [post]
+func (h *RequestHandler) BuildImage(w http.ResponseWriter, r *http.Request) {
+	tag := r.URL.Query().Get("tag")
+	if tag == "" {
+		apimodel.RespondFail(w, http.StatusBadRequest, "missing tag query", nil)
+		return
+	}
+	dripfile := r.URL.Query().Get("dripfile")
+	if dripfile == "" {
+		dripfile = r.URL.Query().Get("dockerfile")
+	}
+	if dripfile == "" {
+		dripfile = "Dripfile"
+	}
+	network := r.URL.Query().Get("network")
+
+	tmpDir, err := os.MkdirTemp("", "raind-build-context-")
+	if err != nil {
+		apimodel.RespondFail(w, http.StatusInternalServerError, "create temp dir failed: "+err.Error(), nil)
+		return
+	}
+	defer os.RemoveAll(tmpDir)
+
+	if err := image.ExtractTarToDir(r.Body, tmpDir); err != nil {
+		apimodel.RespondFail(w, http.StatusBadRequest, "invalid build context: "+err.Error(), nil)
+		return
+	}
+
+	dfPath := filepath.Join(tmpDir, filepath.Clean(dripfile))
+	rel, err := filepath.Rel(tmpDir, dfPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		apimodel.RespondFail(w, http.StatusBadRequest, "invalid dripfile path", nil)
+		return
+	}
+
+	result, err := h.serviceHandler.Build(image.ServiceBuildModel{
+		Image:        tag,
+		ContextDir:   tmpDir,
+		DripfilePath: dfPath,
+		Network:      network,
+	})
+	if err != nil {
+		apimodel.RespondFail(w, http.StatusInternalServerError, "build failed: "+err.Error(), nil)
+		return
+	}
+
+	apimodel.RespondSuccess(w, http.StatusOK, "build completed", BuildImageResponse{Image: result})
 }
 
 // GetImageList godoc

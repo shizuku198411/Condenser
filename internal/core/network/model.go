@@ -1,5 +1,13 @@
 package network
 
+type ServiceNewNetworkModel struct {
+	Bridge string
+}
+
+type ServiceRemoveNetworkModel struct {
+	Bridge string
+}
+
 type ServiceNetworkModel struct {
 	HostPort      string
 	ContainerPort string

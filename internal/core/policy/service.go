@@ -439,7 +439,35 @@ func (s *ServicePolicy) buildRaindEWChain(networkList []ipam.NetworkList, nflog 
 		}
 	}
 
-	// 3. other: return
+	// 3. deny all inter-bridge traffic
+	if nflog {
+		if err := s.iptablesHandler.AddRuleToChain(
+			chainName,
+			RuleModel{
+				Conntrack:   true,
+				Ctstate:     []string{"NEW"},
+				InputDev:    "raind+",
+				OutputDev:   "raind+",
+				NflogGroup:  10,
+				NflogPrefix: "RAIND-EW-DENY,id=predefined",
+			},
+			"NFLOG",
+		); err != nil {
+			return err
+		}
+	}
+	if err := s.iptablesHandler.AddRuleToChain(
+		chainName,
+		RuleModel{
+			InputDev:  "raind+",
+			OutputDev: "raind+",
+		},
+		"DROP",
+	); err != nil {
+		return err
+	}
+
+	// 4. other: return
 	if err := s.iptablesHandler.AddRuleToChain(
 		chainName,
 		RuleModel{},
@@ -459,8 +487,44 @@ func (s *ServicePolicy) buildRaindNSObserveChain(networkList []ipam.NetworkList,
 	}
 
 	// 1. if NFLOG mode is enabled, add NFLOG entry
-	if nflog {
-		for _, n := range networkList {
+	for _, n := range networkList {
+		if nflog {
+			// from external to container
+			// tcp
+			if err := s.iptablesHandler.AddRuleToChain(
+				chainName,
+				RuleModel{
+					Conntrack:   true,
+					Ctstate:     []string{"NEW"},
+					InputDev:    hostInterface,
+					OutputDev:   n.Interface,
+					Protocol:    "tcp",
+					Syn:         true,
+					NflogGroup:  11,
+					NflogPrefix: "RAIND-NS-ALLOW,id=predefined",
+				},
+				"NFLOG",
+			); err != nil {
+				return err
+			}
+			// udp
+			if err := s.iptablesHandler.AddRuleToChain(
+				chainName,
+				RuleModel{
+					Conntrack:   true,
+					Ctstate:     []string{"NEW"},
+					InputDev:    hostInterface,
+					OutputDev:   n.Interface,
+					Protocol:    "udp",
+					NflogGroup:  11,
+					NflogPrefix: "RAIND-NS-ALLOW,id=predefined",
+				},
+				"NFLOG",
+			); err != nil {
+				return err
+			}
+
+			// from container to external
 			if err := s.iptablesHandler.AddRuleToChain(
 				chainName,
 				RuleModel{
@@ -476,10 +540,6 @@ func (s *ServicePolicy) buildRaindNSObserveChain(networkList []ipam.NetworkList,
 				return err
 			}
 		}
-	}
-
-	// 2. allow container to external traffic
-	for _, n := range networkList {
 		if err := s.iptablesHandler.AddRuleToChain(
 			chainName,
 			RuleModel{
@@ -492,7 +552,7 @@ func (s *ServicePolicy) buildRaindNSObserveChain(networkList []ipam.NetworkList,
 		}
 	}
 
-	// 3. other: return
+	// 2. other: return
 	if err := s.iptablesHandler.AddRuleToChain(
 		chainName,
 		RuleModel{},

@@ -3,29 +3,33 @@ package container
 import "time"
 
 type ServiceCreateModel struct {
-	Image   string
-	Os      string
-	Arch    string
-	Command []string
-	Port    []string
-	Mount   []string
-	Env     []string
-	Network string
-	Tty     bool
-	Name    string
+	Image    string
+	Os       string
+	Arch     string
+	Command  []string
+	Port     []string
+	Mount    []string
+	Env      []string
+	Network  string
+	Tty      bool
+	Name     string
+	BottleId string
 }
 
 type ServiceStartModel struct {
 	ContainerId string
 	Tty         bool
+	OpBottle    bool
 }
 
 type ServiceDeleteModel struct {
 	ContainerId string
+	OpBottle    bool
 }
 
 type ServiceStopModel struct {
 	ContainerId string
+	OpBottle    bool
 }
 
 type ServiceExecModel struct {

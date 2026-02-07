@@ -1,4 +1,4 @@
-package ipam
+package bsm
 
 import (
 	"condenser/internal/utils"
@@ -10,20 +10,20 @@ import (
 	"syscall"
 )
 
-func NewIpamStore(path string) *IpamStore {
-	return &IpamStore{
+func NewBsmStore(path string) *BsmStore {
+	return &BsmStore{
 		path:              path,
 		filesystemHandler: utils.NewFilesystemExecutor(),
 	}
 }
 
-type IpamStore struct {
+type BsmStore struct {
 	path              string
 	mu                sync.Mutex
 	filesystemHandler utils.FilesystemHandler
 }
 
-func (s *IpamStore) withLock(fn func(st *IpamState) error) error {
+func (s *BsmStore) withLock(fn func(st *BottleState) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -55,7 +55,7 @@ func (s *IpamStore) withLock(fn func(st *IpamState) error) error {
 	return s.atomicSave(st)
 }
 
-func (s *IpamStore) withRLock(fn func(st *IpamState) error) error {
+func (s *BsmStore) withRLock(fn func(st *BottleState) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -87,59 +87,29 @@ func (s *IpamStore) withRLock(fn func(st *IpamState) error) error {
 	return nil
 }
 
-func (s *IpamStore) loadOrInit() (*IpamState, error) {
+func (s *BsmStore) loadOrInit() (*BottleState, error) {
 	b, err := s.filesystemHandler.ReadFile(s.path)
-
 	if err != nil {
-		defaultHostInterface, getIfErr := GetDefaultInterfaceIpv4()
-		if getIfErr != nil {
-			return nil, getIfErr
-		}
-		defaultHostInterfaceAddr, getIfAddrErr := GetDefaultInterfaceAddressIpv4(defaultHostInterface)
-		if getIfAddrErr != nil {
-			return nil, getIfAddrErr
-		}
 		if s.filesystemHandler.IsNotExist(err) {
-			// ipam state file not exist
-			return &IpamState{
-				Version:       "0.1.0",
-				RuntimeSubnet: "10.166.0.0/16",
-				DnsProxy: DnsProxy{
-					DnsProxyInterface: "raindDns",
-					DnsProxyAddr:      "10.166.254.254",
-					Upstreams: []string{
-						"8.8.8.8",
-						"1.1.1.1",
-					},
-				},
-				HostInterface:     defaultHostInterface,
-				HostInterfaceAddr: defaultHostInterfaceAddr,
-				Pools: []Pool{
-					{
-						Interface:   "raind0",
-						Subnet:      "10.166.0.0/24",
-						Address:     "10.166.0.254/24",
-						Allocations: map[string]Allocation{},
-					},
-				},
+			return &BottleState{
+				Version: "0.1.0",
+				Bottles: map[string]BottleInfo{},
 			}, nil
 		}
 		return nil, err
 	}
 
-	var st IpamState
+	var st BottleState
 	if err := json.Unmarshal(b, &st); err != nil {
-		return nil, fmt.Errorf("ipam state json broken: %w", err)
+		return nil, fmt.Errorf("bottle state json broken: %w", err)
 	}
-	for _, p := range st.Pools {
-		if p.Allocations == nil {
-			p.Allocations = map[string]Allocation{}
-		}
+	if st.Bottles == nil {
+		st.Bottles = map[string]BottleInfo{}
 	}
 	return &st, nil
 }
 
-func (s *IpamStore) atomicSave(st *IpamState) error {
+func (s *BsmStore) atomicSave(st *BottleState) error {
 	tmp := s.path + ".tmp"
 
 	b, err := json.MarshalIndent(st, "", "  ")
@@ -166,37 +136,11 @@ func (s *IpamStore) atomicSave(st *IpamState) error {
 	return s.filesystemHandler.Rename(tmp, s.path)
 }
 
-func (s *IpamStore) SetConfig() error {
-	defaultHostInterface, err := GetDefaultInterfaceIpv4()
-	if err != nil {
-		return err
-	}
-
-	defaultHostInterfaceAddr, err := GetDefaultInterfaceAddressIpv4(defaultHostInterface)
-	if err != nil {
-		return err
-	}
-
-	return s.withLock(func(st *IpamState) error {
+func (s *BsmStore) SetBottleState() error {
+	return s.withLock(func(st *BottleState) error {
 		st.Version = "0.1.0"
-		st.RuntimeSubnet = "10.166.0.0/16"
-		st.DnsProxy = DnsProxy{
-			DnsProxyInterface: "raindDns",
-			DnsProxyAddr:      "10.166.254.254",
-			Upstreams: []string{
-				"8.8.8.8",
-				"1.1.1.1",
-			},
-		}
-		st.HostInterface = defaultHostInterface
-		st.HostInterfaceAddr = defaultHostInterfaceAddr
-		if len(st.Pools) == 0 {
-			st.Pools = append(st.Pools, Pool{
-				Interface:   "raind0",
-				Subnet:      "10.166.0.0/24",
-				Address:     "10.166.0.254/24",
-				Allocations: map[string]Allocation{},
-			})
+		if st.Bottles == nil {
+			st.Bottles = map[string]BottleInfo{}
 		}
 		return nil
 	})
