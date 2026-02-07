@@ -442,6 +442,128 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/images/build": {
+            "post": {
+                "description": "build image from Dripfile-like archive (tar)",
+                "consumes": [
+                    "application/x-tar"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "image"
+                ],
+                "summary": "build image",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Target image tag (e.g. myapp:latest)",
+                        "name": "tag",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Dripfile path in context (default: Dripfile)",
+                        "name": "dripfile",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bridge interface (default: raind0)",
+                        "name": "network",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/networks": {
+            "get": {
+                "description": "get bridge list",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network"
+                ],
+                "summary": "get bridge list",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "create new bridge",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network"
+                ],
+                "summary": "create bridge",
+                "parameters": [
+                    {
+                        "description": "Bridge Information",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/network.CreateBridgeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/networks/{bridge}/actions/delete": {
+            "delete": {
+                "description": "delete new bridge",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network"
+                ],
+                "summary": "delete bridge",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/policies": {
             "get": {
                 "description": "get policy",
@@ -724,6 +846,14 @@ const docTemplate = `{
                 "image": {
                     "type": "string",
                     "example": "alpine:latest"
+                }
+            }
+        },
+        "network.CreateBridgeRequest": {
+            "type": "object",
+            "properties": {
+                "bridge": {
+                    "type": "string"
                 }
             }
         },

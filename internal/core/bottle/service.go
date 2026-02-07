@@ -2,6 +2,7 @@ package bottle
 
 import (
 	"condenser/internal/core/container"
+	"condenser/internal/core/network"
 	"condenser/internal/core/policy"
 	"condenser/internal/store/bsm"
 	"condenser/internal/store/csm"
@@ -20,6 +21,7 @@ func NewBottleService() *BottleService {
 		csmHandler:       csm.NewCsmManager(csm.NewCsmStore(utils.CsmStorePath)),
 		ipamHandler:      ipam.NewIpamManager(ipam.NewIpamStore(utils.IpamStorePath)),
 		policyHandler:    policy.NewwServicePolicy(),
+		networkHandler:   network.NewNetworkService(),
 	}
 }
 
@@ -29,6 +31,7 @@ type BottleService struct {
 	csmHandler       csm.CsmHandler
 	ipamHandler      ipam.IpamHandler
 	policyHandler    policy.PolicyServiceHandler
+	networkHandler   network.NetworkServiceHandler
 }
 
 func (s *BottleService) DecodeSpec(yamlBytes []byte) (*BottleSpec, error) {
@@ -109,6 +112,22 @@ func (s *BottleService) Create(bottleIdOrName string) (string, error) {
 		containers[k] = v
 	}
 
+	bridge := info.Network
+	autoNetwork := info.NetworkAuto
+	if bridge == "" && shouldCreateBottleNetwork(info.Services) {
+		bridge = "raind" + bottleIdPrefix(bottleId)
+		if err := s.networkHandler.CreateNewNetwork(network.ServiceNewNetworkModel{Bridge: bridge}); err != nil {
+			return "", err
+		}
+		autoNetwork = true
+		if err := s.bsmHandler.UpdateBottleNetwork(bottleId, bridge, true); err != nil {
+			_ = s.networkHandler.RemoveNetwork(network.ServiceRemoveNetworkModel{Bridge: bridge})
+			return "", err
+		}
+	} else if bridge == "" && !autoNetwork {
+		_ = s.bsmHandler.UpdateBottleNetwork(bottleId, "", false)
+	}
+
 	var created []string
 	for _, serviceName := range info.StartOrder {
 		containerId := ""
@@ -125,29 +144,34 @@ func (s *BottleService) Create(bottleIdOrName string) (string, error) {
 		}
 		env, err := s.resolveEnvWithDeps(info, containers, serviceName, spec.Env)
 		if err != nil {
-			s.rollbackCreatedContainers(created, containers, bottleId)
+			s.rollbackCreatedContainers(created, containers, bottleId, bridge, autoNetwork)
 			return "", err
 		}
+		networkName := spec.Network
+		if networkName == "" && autoNetwork {
+			networkName = bridge
+		}
 		createParam := container.ServiceCreateModel{
-			Image:   spec.Image,
-			Command: spec.Command,
-			Port:    spec.Ports,
-			Mount:   spec.Mount,
-			Env:     env,
-			Network: spec.Network,
-			Tty:     spec.Tty,
-			Name:    buildContainerName(info.BottleName, serviceName),
+			Image:    spec.Image,
+			Command:  spec.Command,
+			Port:     spec.Ports,
+			Mount:    spec.Mount,
+			Env:      env,
+			Network:  networkName,
+			Tty:      spec.Tty,
+			Name:     buildContainerName(info.BottleName, serviceName),
+			BottleId: bottleId,
 		}
 		containerId, err = s.containerService.Create(createParam)
 		if err != nil {
-			s.rollbackCreatedContainers(created, containers, bottleId)
+			s.rollbackCreatedContainers(created, containers, bottleId, bridge, autoNetwork)
 			return "", err
 		}
 
 		containers[serviceName] = containerId
 		created = append(created, containerId)
 		if err := s.bsmHandler.UpdateBottleContainer(bottleId, serviceName, containerId); err != nil {
-			s.rollbackCreatedContainers(created, containers, bottleId)
+			s.rollbackCreatedContainers(created, containers, bottleId, bridge, autoNetwork)
 			return "", err
 		}
 	}
@@ -185,6 +209,7 @@ func (s *BottleService) Start(bottleIdOrName string) (string, error) {
 		if _, err := s.containerService.Start(container.ServiceStartModel{
 			ContainerId: containerId,
 			Tty:         spec.Tty,
+			OpBottle:    true,
 		}); err != nil {
 			return "", err
 		}
@@ -225,6 +250,7 @@ func (s *BottleService) Stop(bottleIdOrName string) (string, error) {
 		}
 		if _, err := s.containerService.Stop(container.ServiceStopModel{
 			ContainerId: containerId,
+			OpBottle:    true,
 		}); err != nil {
 			return "", err
 		}
@@ -264,6 +290,7 @@ func (s *BottleService) Delete(bottleIdOrName string) (string, error) {
 		if state == "running" {
 			if _, err := s.containerService.Stop(container.ServiceStopModel{
 				ContainerId: containerId,
+				OpBottle:    true,
 			}); err != nil {
 				return "", err
 			}
@@ -271,6 +298,7 @@ func (s *BottleService) Delete(bottleIdOrName string) (string, error) {
 
 		if _, err := s.containerService.Delete(container.ServiceDeleteModel{
 			ContainerId: containerId,
+			OpBottle:    true,
 		}); err != nil {
 			return "", err
 		}
@@ -278,6 +306,12 @@ func (s *BottleService) Delete(bottleIdOrName string) (string, error) {
 
 	if err := s.removeBottlePolicies(info.Policies); err != nil {
 		return "", err
+	}
+
+	if info.NetworkAuto && info.Network != "" {
+		if err := s.networkHandler.RemoveNetwork(network.ServiceRemoveNetworkModel{Bridge: info.Network}); err != nil {
+			return "", err
+		}
 	}
 
 	if err := s.bsmHandler.RemoveBottle(bottleId); err != nil {
@@ -314,10 +348,11 @@ func (s *BottleService) removeBottlePolicies(policies []bsm.PolicyInfo) error {
 	return nil
 }
 
-func (s *BottleService) rollbackCreatedContainers(created []string, containers map[string]string, bottleId string) {
+func (s *BottleService) rollbackCreatedContainers(created []string, containers map[string]string, bottleId string, bridge string, autoNetwork bool) {
 	for i := len(created) - 1; i >= 0; i-- {
 		_, _ = s.containerService.Delete(container.ServiceDeleteModel{
 			ContainerId: created[i],
+			OpBottle:    true,
 		})
 	}
 	for _, id := range created {
@@ -328,6 +363,29 @@ func (s *BottleService) rollbackCreatedContainers(created []string, containers m
 		}
 	}
 	_ = s.bsmHandler.UpdateBottleContainers(bottleId, containers)
+	if autoNetwork && bridge != "" {
+		_ = s.networkHandler.RemoveNetwork(network.ServiceRemoveNetworkModel{Bridge: bridge})
+		_ = s.bsmHandler.UpdateBottleNetwork(bottleId, "", false)
+	}
+}
+
+func shouldCreateBottleNetwork(services map[string]bsm.ServiceSpec) bool {
+	if len(services) == 0 {
+		return false
+	}
+	for _, svc := range services {
+		if svc.Network != "" {
+			return false
+		}
+	}
+	return true
+}
+
+func bottleIdPrefix(bottleId string) string {
+	if len(bottleId) <= 10 {
+		return bottleId
+	}
+	return bottleId[:10]
 }
 
 func (s *BottleService) resolveEnvWithDeps(info bsm.BottleInfo, containers map[string]string, serviceName string, env []string) ([]string, error) {

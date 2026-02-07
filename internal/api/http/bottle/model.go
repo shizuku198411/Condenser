@@ -29,6 +29,8 @@ type BottleDetail struct {
 	StartOrder []string                     `json:"startOrder"`
 	Containers map[string]BottleContainerState `json:"containers"`
 	Policies   []BottlePolicyInfo           `json:"policies,omitempty"`
+	Network    string                       `json:"network,omitempty"`
+	NetworkAuto bool                         `json:"networkAuto,omitempty"`
 	CreatedAt  string                       `json:"createdAt"`
 }
 

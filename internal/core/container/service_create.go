@@ -85,7 +85,17 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	} else {
 		command = slices.Concat(imageConfig.Config.Entrypoint, imageConfig.Config.Cmd)
 	}
-	if err := s.csmHandler.StoreContainer(containerId, "creating", 0, createParameter.Tty, imageRepo, imageRef, command, containerName); err != nil {
+	if err := s.csmHandler.StoreContainer(
+		containerId,
+		"creating",
+		0,
+		createParameter.Tty,
+		imageRepo,
+		imageRef,
+		command,
+		containerName,
+		createParameter.BottleId,
+	); err != nil {
 		return "", err
 	}
 	rollbackFlag.CSMEntry = true

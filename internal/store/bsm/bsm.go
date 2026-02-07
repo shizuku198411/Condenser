@@ -69,6 +69,19 @@ func (m *BsmManager) UpdateBottleContainer(bottleId string, serviceName string, 
 	})
 }
 
+func (m *BsmManager) UpdateBottleNetwork(bottleId string, network string, auto bool) error {
+	return m.bsmStore.withLock(func(st *BottleState) error {
+		b, ok := st.Bottles[bottleId]
+		if !ok {
+			return fmt.Errorf("bottleId=%s not found", bottleId)
+		}
+		b.Network = network
+		b.NetworkAuto = auto
+		st.Bottles[bottleId] = b
+		return nil
+	})
+}
+
 func (m *BsmManager) GetBottleList() ([]BottleInfo, error) {
 	var bottleList []BottleInfo
 	err := m.bsmStore.withRLock(func(st *BottleState) error {

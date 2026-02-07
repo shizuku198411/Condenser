@@ -439,7 +439,35 @@ func (s *ServicePolicy) buildRaindEWChain(networkList []ipam.NetworkList, nflog 
 		}
 	}
 
-	// 3. other: return
+	// 3. deny all inter-bridge traffic
+	if nflog {
+		if err := s.iptablesHandler.AddRuleToChain(
+			chainName,
+			RuleModel{
+				Conntrack:   true,
+				Ctstate:     []string{"NEW"},
+				InputDev:    "raind+",
+				OutputDev:   "raind+",
+				NflogGroup:  10,
+				NflogPrefix: "RAIND-EW-DENY,id=predefined",
+			},
+			"NFLOG",
+		); err != nil {
+			return err
+		}
+	}
+	if err := s.iptablesHandler.AddRuleToChain(
+		chainName,
+		RuleModel{
+			InputDev:  "raind+",
+			OutputDev: "raind+",
+		},
+		"DROP",
+	); err != nil {
+		return err
+	}
+
+	// 4. other: return
 	if err := s.iptablesHandler.AddRuleToChain(
 		chainName,
 		RuleModel{},

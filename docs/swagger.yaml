@@ -78,6 +78,11 @@ definitions:
         example: alpine:latest
         type: string
     type: object
+  network.CreateBridgeRequest:
+    properties:
+      bridge:
+        type: string
+    type: object
   policy.AddPolicyRequest:
     properties:
       chain:
@@ -397,6 +402,86 @@ paths:
       summary: pull image
       tags:
       - image
+  /v1/images/build:
+    post:
+      consumes:
+      - application/x-tar
+      description: build image from Dripfile-like archive (tar)
+      parameters:
+      - description: Target image tag (e.g. myapp:latest)
+        in: query
+        name: tag
+        required: true
+        type: string
+      - description: 'Dripfile path in context (default: Dripfile)'
+        in: query
+        name: dripfile
+        type: string
+      - description: 'Bridge interface (default: raind0)'
+        in: query
+        name: network
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: build image
+      tags:
+      - image
+  /v1/networks:
+    get:
+      consumes:
+      - application/json
+      description: get bridge list
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: get bridge list
+      tags:
+      - Network
+    post:
+      consumes:
+      - application/json
+      description: create new bridge
+      parameters:
+      - description: Bridge Information
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/network.CreateBridgeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: create bridge
+      tags:
+      - Network
+  /v1/networks/{bridge}/actions/delete:
+    delete:
+      consumes:
+      - application/json
+      description: delete new bridge
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: delete bridge
+      tags:
+      - Network
   /v1/policies:
     get:
       consumes:

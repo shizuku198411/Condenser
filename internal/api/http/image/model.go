@@ -9,3 +9,8 @@ type PullImageRequest struct {
 type RemoveImageRequest struct {
 	Image string `json:"image" example:"alpine:latest"`
 }
+
+// == build ==
+type BuildImageResponse struct {
+	Image string `json:"image"`
+}

@@ -40,6 +40,7 @@ type IpamState struct {
 }
 
 type NetworkList struct {
-	Interface string
-	Address   string
+	Interface     string
+	Address       string
+	NumContainers int
 }

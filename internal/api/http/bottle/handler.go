@@ -163,10 +163,12 @@ func (h *RequestHandler) GetBottleDetail(w http.ResponseWriter, r *http.Request)
 		Bottle: BottleDetail{
 			BottleId:   info.BottleId,
 			BottleName: info.BottleName,
-			Services:   toApiServices(info.Services),
+			Services:   toApiServices(info.Services, info.Network, info.NetworkAuto),
 			StartOrder: info.StartOrder,
 			Containers: containerStates,
 			Policies:   toApiPolicies(info.BottleName, info.Policies),
+			Network:    info.Network,
+			NetworkAuto: info.NetworkAuto,
 			CreatedAt:  info.CreatedAt.Format(time.RFC3339Nano),
 		},
 	})
@@ -226,16 +228,20 @@ func toStoreServices(services map[string]bottle.ServiceSpec) map[string]bsm.Serv
 	return out
 }
 
-func toApiServices(services map[string]bsm.ServiceSpec) map[string]BottleServiceSpec {
+func toApiServices(services map[string]bsm.ServiceSpec, bottleNetwork string, auto bool) map[string]BottleServiceSpec {
 	out := make(map[string]BottleServiceSpec, len(services))
 	for name, svc := range services {
+		networkName := svc.Network
+		if networkName == "" && auto && bottleNetwork != "" {
+			networkName = bottleNetwork
+		}
 		out[name] = BottleServiceSpec{
 			Image:     svc.Image,
 			Command:   svc.Command,
 			Env:       svc.Env,
 			Ports:     svc.Ports,
 			Mount:     svc.Mount,
-			Network:   svc.Network,
+			Network:   networkName,
 			Tty:       svc.Tty,
 			DependsOn: svc.DependsOn,
 		}

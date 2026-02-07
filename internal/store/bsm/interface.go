@@ -9,6 +9,7 @@ type BsmHandler interface {
 	RemoveBottle(bottleId string) error
 	UpdateBottleContainers(bottleId string, containers map[string]string) error
 	UpdateBottleContainer(bottleId string, serviceName string, containerId string) error
+	UpdateBottleNetwork(bottleId string, network string, auto bool) error
 	GetBottleList() ([]BottleInfo, error)
 	GetBottleById(bottleId string) (BottleInfo, error)
 	GetBottleByName(bottleName string) (BottleInfo, error)
