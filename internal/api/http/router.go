@@ -14,6 +14,7 @@ import (
 	imageHandler "condenser/internal/api/http/image"
 	"condenser/internal/api/http/logger"
 	logHandler "condenser/internal/api/http/logs"
+	networkHandler "condenser/internal/api/http/network"
 	policyHandler "condenser/internal/api/http/policy"
 	websocketHandler "condenser/internal/api/http/websocket"
 	"condenser/internal/utils"
@@ -49,6 +50,7 @@ func NewApiRouter() *chi.Mux {
 	containerHandler := containerHandler.NewRequestHandler()
 	bottleHandler := bottleHandler.NewRequestHandler()
 	imageHandler := imageHandler.NewRequestHandler()
+	networkHandler := networkHandler.NewRequestHandler()
 	socketHandler := websocketHandler.NewRequestHandler()
 	execSocketHandler := websocketHandler.NewExecRequestHandler()
 	policyHandler := policyHandler.NewRequestHandler()
@@ -90,6 +92,10 @@ func NewApiRouter() *chi.Mux {
 	r.Post("/v1/images", imageHandler.PullImage)        // pull image
 	r.Post("/v1/images/build", imageHandler.BuildImage) // build image
 	r.Delete("/v1/images", imageHandler.RemoveImage)    // remove image
+
+	// == network ==
+	r.Post("/v1/networks", networkHandler.CreateBridge)                           // create network
+	r.Delete("/v1/networks/{bridge}/actions/delete", networkHandler.DeleteBridge) // delete network
 
 	// == websocket ==
 	r.Get("/v1/containers/{containerId}/attach", socketHandler.ServeHTTP)

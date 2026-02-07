@@ -78,6 +78,11 @@ definitions:
         example: alpine:latest
         type: string
     type: object
+  network.CreateBridgeRequest:
+    properties:
+      bridge:
+        type: string
+    type: object
   policy.AddPolicyRequest:
     properties:
       chain:
@@ -426,6 +431,43 @@ paths:
       summary: build image
       tags:
       - image
+  /v1/networks:
+    post:
+      consumes:
+      - application/json
+      description: create new bridge
+      parameters:
+      - description: Bridge Information
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/network.CreateBridgeRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: create bridge
+      tags:
+      - Network
+  /v1/networks/{bridge}/actions/delete:
+    delete:
+      consumes:
+      - application/json
+      description: delete new bridge
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: delete bridge
+      tags:
+      - Network
   /v1/policies:
     get:
       consumes:

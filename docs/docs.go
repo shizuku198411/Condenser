@@ -486,6 +486,63 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/networks": {
+            "post": {
+                "description": "create new bridge",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network"
+                ],
+                "summary": "create bridge",
+                "parameters": [
+                    {
+                        "description": "Bridge Information",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/network.CreateBridgeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/networks/{bridge}/actions/delete": {
+            "delete": {
+                "description": "delete new bridge",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Network"
+                ],
+                "summary": "delete bridge",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/policies": {
             "get": {
                 "description": "get policy",
@@ -768,6 +825,14 @@ const docTemplate = `{
                 "image": {
                     "type": "string",
                     "example": "alpine:latest"
+                }
+            }
+        },
+        "network.CreateBridgeRequest": {
+            "type": "object",
+            "properties": {
+                "bridge": {
+                    "type": "string"
                 }
             }
         },

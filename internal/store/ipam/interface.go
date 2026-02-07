@@ -8,6 +8,8 @@ type IpamHandler interface {
 	Allocate(containerId string, bridge string) (string, error)
 	Release(containerId string) error
 	GetNetworkList() ([]NetworkList, error)
+	StoreBridge(bridge string) (string, string, error)
+	RemoveBridge(bridge string) error
 	GetRuntimeSubnet() (string, error)
 	GetDefaultInterface() (string, error)
 	GetDefaultInterfaceAddr() (string, error)
