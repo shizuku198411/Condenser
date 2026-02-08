@@ -81,6 +81,9 @@ func NewApiRouter() *chi.Mux {
 	r.Get("/v1/containers", containerHandler.GetContainerList)                                // get container list
 	r.Get("/v1/containers/{containerId}", containerHandler.GetContainerById)                  // get container status by id
 	r.Get("/v1/containers/{containerId}/log", containerHandler.GetContainerLog)               // get container log
+	r.Get("/v1/containers/{containerId}/logpath", containerHandler.GetContainerLogPath)       // get container log path
+	r.Get("/v1/containers/{containerId}/stats", containerHandler.GetContainerStats)           // get container stats
+	r.Get("/v1/containers/stats", containerHandler.ListContainerStats)                        // get container stats list
 	r.Post("/v1/containers", containerHandler.CreateContainer)                                // create container
 	r.Post("/v1/containers/{containerId}/actions/start", containerHandler.StartContainer)     // start container
 	r.Post("/v1/containers/{containerId}/actions/stop", containerHandler.StopContainer)       // stop container
@@ -92,6 +95,8 @@ func NewApiRouter() *chi.Mux {
 	r.Post("/v1/images", imageHandler.PullImage)        // pull image
 	r.Post("/v1/images/build", imageHandler.BuildImage) // build image
 	r.Delete("/v1/images", imageHandler.RemoveImage)    // remove image
+	r.Get("/v1/images/status", imageHandler.GetImageStatus)
+	r.Get("/v1/images/fs", imageHandler.GetImageFsInfo)
 
 	// == network ==
 	r.Get("/v1/networks", networkHandler.GetNetworkList)                          // list network

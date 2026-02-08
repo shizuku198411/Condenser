@@ -65,6 +65,14 @@ func (m *ContainerMonitor) Start() error {
 				); err != nil {
 					continue
 				}
+				if err := m.csmHandler.UpdateExitStatus(
+					container.ContainerId,
+					-1,
+					"Error",
+					"process down detected.",
+				); err != nil {
+					continue
+				}
 				continue
 			}
 

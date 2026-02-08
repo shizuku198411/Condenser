@@ -15,13 +15,15 @@ type CsmManager struct {
 	csmStore *CsmStore
 }
 
-func (m *CsmManager) StoreContainer(containerId string, state string, pid int, tty bool, repo, ref string, command []string, name string, bottleId string) error {
+func (m *CsmManager) StoreContainer(containerId string, state string, pid int, tty bool, repo, ref string, command []string, name string, bottleId string, logPath string) error {
 	return m.csmStore.withLock(func(st *ContainerState) error {
 		st.Containers[containerId] = ContainerInfo{
 			ContainerId:   containerId,
 			ContainerName: name,
 			State:         state,
 			Pid:           pid,
+			ExitCode:      0,
+			LogPath:       logPath,
 			Tty:           tty,
 			Repository:    repo,
 			Reference:     ref,
@@ -66,11 +68,28 @@ func (m *CsmManager) UpdateContainer(containerId string, state string, pid int) 
 			c.StartedAt = time.Now()
 		case "stopped":
 			c.StoppedAt = time.Now()
+			c.FinishedAt = c.StoppedAt
 		}
 
 		if pid >= 0 {
 			c.Pid = pid
 		}
+		st.Containers[containerId] = c
+		return nil
+	})
+}
+
+func (m *CsmManager) UpdateExitStatus(containerId string, exitCode int, reason string, message string) error {
+	return m.csmStore.withLock(func(st *ContainerState) error {
+		c, ok := st.Containers[containerId]
+		if !ok {
+			return fmt.Errorf("containerId=%s not found", containerId)
+		}
+
+		c.ExitCode = exitCode
+		c.Reason = reason
+		c.Message = message
+
 		st.Containers[containerId] = c
 		return nil
 	})
@@ -209,4 +228,19 @@ func (m *CsmManager) IsContainerExist(str string) bool {
 		return false
 	}
 	return true
+}
+
+func (m *CsmManager) GetLogPath(containerId string) (string, error) {
+	var logPath string
+	err := m.csmStore.withRLock(func(st *ContainerState) error {
+		for _, c := range st.Containers {
+			if c.ContainerId != containerId {
+				continue
+			}
+			logPath = c.LogPath
+			return nil
+		}
+		return fmt.Errorf("container: %s not found", containerId)
+	})
+	return logPath, err
 }

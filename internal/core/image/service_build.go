@@ -427,6 +427,7 @@ func (s *ImageService) runCommandInContainer(state *buildState, bridge string, s
 		[]string{"/bin/sh", "-e", runScriptPath},
 		containerId,
 		"",
+		"",
 	); err != nil {
 		return err
 	}

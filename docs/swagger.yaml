@@ -338,6 +338,51 @@ paths:
       summary: get container log
       tags:
       - containers
+  /v1/containers/{containerId}/logpath:
+    get:
+      description: get container log path
+      parameters:
+      - description: Container ID
+        in: path
+        name: containerId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: get container log path
+      tags:
+      - containers
+  /v1/containers/{containerId}/stats:
+    get:
+      description: get container stats
+      parameters:
+      - description: Container ID
+        in: path
+        name: containerId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: get container stats
+      tags:
+      - containers
+  /v1/containers/stats:
+    get:
+      description: list container stats
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: list container stats
+      tags:
+      - containers
   /v1/hooks/droplet:
     post:
       description: apply hook from droplet
@@ -429,6 +474,44 @@ paths:
           schema:
             $ref: '#/definitions/utils.ApiResponse'
       summary: build image
+      tags:
+      - image
+  /v1/images/fs:
+    get:
+      description: get image filesystem usage
+      parameters:
+      - description: Target Image
+        in: query
+        name: image
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: get image fs info
+      tags:
+      - image
+  /v1/images/status:
+    get:
+      description: get image status details
+      parameters:
+      - description: Target Image
+        in: query
+        name: image
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: get image status
       tags:
       - image
   /v1/networks:

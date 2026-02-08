@@ -158,3 +158,62 @@ func (h *RequestHandler) GetImageList(w http.ResponseWriter, r *http.Request) {
 	// encode response
 	apimodel.RespondSuccess(w, http.StatusOK, "retrieve image list success", imageList)
 }
+
+// GetImageStatus godoc
+// @Summary get image status
+// @Description get image status details
+// @Tags image
+// @Produce json
+// @Param image query string true "Target Image"
+// @Success 200 {object} apimodel.ApiResponse
+// @Router /v1/images/status [get]
+func (h *RequestHandler) GetImageStatus(w http.ResponseWriter, r *http.Request) {
+	imageStr := r.URL.Query().Get("image")
+	if imageStr == "" {
+		apimodel.RespondFail(w, http.StatusBadRequest, "missing image query", nil)
+		return
+	}
+
+	status, err := h.serviceHandler.GetImageStatus(imageStr)
+	if err != nil {
+		apimodel.RespondFail(w, http.StatusInternalServerError, "retrieve image status failed: "+err.Error(), nil)
+		return
+	}
+
+	apimodel.RespondSuccess(w, http.StatusOK, "retrieve image status success", ImageStatusResponse{
+		Repository:  status.Repository,
+		Reference:   status.Reference,
+		Id:          status.Id,
+		RepoTags:    status.RepoTags,
+		RepoDigests: status.RepoDigests,
+		SizeBytes:   status.SizeBytes,
+		CreatedAt:   status.CreatedAt,
+	})
+}
+
+// GetImageFsInfo godoc
+// @Summary get image fs info
+// @Description get image filesystem usage
+// @Tags image
+// @Produce json
+// @Param image query string true "Target Image"
+// @Success 200 {object} apimodel.ApiResponse
+// @Router /v1/images/fs [get]
+func (h *RequestHandler) GetImageFsInfo(w http.ResponseWriter, r *http.Request) {
+	imageStr := r.URL.Query().Get("image")
+	if imageStr == "" {
+		apimodel.RespondFail(w, http.StatusBadRequest, "missing image query", nil)
+		return
+	}
+
+	info, err := h.serviceHandler.GetImageFsInfo(imageStr)
+	if err != nil {
+		apimodel.RespondFail(w, http.StatusInternalServerError, "retrieve image fs info failed: "+err.Error(), nil)
+		return
+	}
+
+	apimodel.RespondSuccess(w, http.StatusOK, "retrieve image fs info success", ImageFsInfoResponse{
+		Image:     info.Image,
+		UsedBytes: info.UsedBytes,
+	})
+}

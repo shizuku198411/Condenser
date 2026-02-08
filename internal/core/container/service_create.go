@@ -85,6 +85,12 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	} else {
 		command = slices.Concat(imageConfig.Config.Entrypoint, imageConfig.Config.Cmd)
 	}
+	logPath := ""
+	if createParameter.Tty {
+		logPath = filepath.Join(utils.ContainerRootDir, containerId, "logs", "console.log")
+	} else {
+		logPath = filepath.Join(utils.ContainerRootDir, containerId, "logs", "init.log")
+	}
 	if err := s.csmHandler.StoreContainer(
 		containerId,
 		"creating",
@@ -95,6 +101,7 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 		command,
 		containerName,
 		createParameter.BottleId,
+		logPath,
 	); err != nil {
 		return "", err
 	}

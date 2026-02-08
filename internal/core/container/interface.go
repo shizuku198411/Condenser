@@ -8,6 +8,9 @@ type ContainerServiceHandler interface {
 	Exec(execParameter ServiceExecModel) error
 	GetContainerList() ([]ContainerState, error)
 	GetContainerById(containerId string) (ContainerState, error)
+	GetContainerStats(containerId string) (ContainerStats, error)
+	ListContainerStats() ([]ContainerStats, error)
+	GetContainerLogPath(target string) (string, error)
 	GetLogWithTailLines(containerId string, n int) ([]byte, error)
 }
 

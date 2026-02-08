@@ -36,3 +36,18 @@ type ImageInfo struct {
 	Reference  string    `json:"reference"`
 	CreatedAt  time.Time `json:"createdAt"`
 }
+
+type ImageStatusInfo struct {
+	Repository  string    `json:"repository"`
+	Reference   string    `json:"reference"`
+	Id          string    `json:"id"`
+	RepoTags    []string  `json:"repoTags"`
+	RepoDigests []string  `json:"repoDigests"`
+	SizeBytes   int64     `json:"sizeBytes"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+type ImageFsInfo struct {
+	Image     string `json:"image"`
+	UsedBytes int64  `json:"usedBytes"`
+}

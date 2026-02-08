@@ -49,6 +49,15 @@ func (s *HookService) HookAction(stateParameter ServiceStateModel, eventType str
 		if err := s.csmHandler.UpdateContainer(stateParameter.Id, stateParameter.Status, stateParameter.Pid); err != nil {
 			return fmt.Errorf("csm update failed: %w", err)
 		}
+		// update exit code
+		if err := s.csmHandler.UpdateExitStatus(
+			stateParameter.Id,
+			stateParameter.ExitCode,
+			stateParameter.Reason,
+			stateParameter.Message,
+		); err != nil {
+			return fmt.Errorf("csm update failed: %w", err)
+		}
 	case "poststop":
 		if err := s.csmHandler.RemoveContainer(stateParameter.Id); err != nil {
 			return fmt.Errorf("csm remove failed: %w", err)

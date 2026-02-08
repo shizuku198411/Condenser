@@ -170,6 +170,23 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/containers/stats": {
+            "get": {
+                "description": "list container stats",
+                "tags": [
+                    "containers"
+                ],
+                "summary": "list container stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/containers/{containerId}": {
             "get": {
                 "description": "get an exitsting container info",
@@ -344,6 +361,58 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/containers/{containerId}/logpath": {
+            "get": {
+                "description": "get container log path",
+                "tags": [
+                    "containers"
+                ],
+                "summary": "get container log path",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Container ID",
+                        "name": "containerId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/containers/{containerId}/stats": {
+            "get": {
+                "description": "get container stats",
+                "tags": [
+                    "containers"
+                ],
+                "summary": "get container stats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Container ID",
+                        "name": "containerId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/hooks/droplet": {
             "post": {
                 "description": "apply hook from droplet",
@@ -474,6 +543,64 @@ const docTemplate = `{
                         "description": "Bridge interface (default: raind0)",
                         "name": "network",
                         "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/images/fs": {
+            "get": {
+                "description": "get image filesystem usage",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "image"
+                ],
+                "summary": "get image fs info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Target Image",
+                        "name": "image",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/images/status": {
+            "get": {
+                "description": "get image status details",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "image"
+                ],
+                "summary": "get image status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Target Image",
+                        "name": "image",
+                        "in": "query",
+                        "required": true
                     }
                 ],
                 "responses": {

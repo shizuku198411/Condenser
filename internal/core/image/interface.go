@@ -6,4 +6,6 @@ type ImageServiceHandler interface {
 	Build(buildParameter ServiceBuildModel) (string, error)
 	GetImageConfig(filepath string) (ImageConfigFile, error)
 	GetImageList() ([]ImageInfo, error)
+	GetImageStatus(imageStr string) (ImageStatusInfo, error)
+	GetImageFsInfo(imageStr string) (ImageFsInfo, error)
 }

@@ -113,6 +113,27 @@ func (s *IlmManager) GetImageList() ([]ImageInfo, error) {
 	return imageList, err
 }
 
+func (s *IlmManager) GetImageInfo(repository string, reference string) (ImageInfo, error) {
+	var info ImageInfo
+	err := s.ilmStore.withRLock(func(st *ImageLayerState) error {
+		repo, ok := st.Repositories[repository]
+		if !ok {
+			return fmt.Errorf("%s:%s not found", repository, reference)
+		}
+		refInfo, ok := repo.References[reference]
+		if !ok {
+			return fmt.Errorf("%s:%s not found", repository, reference)
+		}
+		info = ImageInfo{
+			Repository: repository,
+			Reference:  reference,
+			CreatedAt:  refInfo.CreatedAt,
+		}
+		return nil
+	})
+	return info, err
+}
+
 func (s *IlmManager) IsImageExist(imageRepo, imageRef string) bool {
 	var result bool
 
