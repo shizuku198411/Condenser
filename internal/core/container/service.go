@@ -8,6 +8,7 @@ import (
 	"condenser/internal/store/csm"
 	"condenser/internal/store/ilm"
 	"condenser/internal/store/ipam"
+	"condenser/internal/store/psm"
 	"condenser/internal/utils"
 )
 
@@ -20,6 +21,7 @@ func NewContaierService() *ContainerService {
 		ipamHandler: ipam.NewIpamManager(ipam.NewIpamStore(utils.IpamStorePath)),
 		ilmHandler:  ilm.NewIlmManager(ilm.NewIlmStore(utils.IlmStorePath)),
 		csmHandler:  csm.NewCsmManager(csm.NewCsmStore(utils.CsmStorePath)),
+		psmHandler:  psm.NewPsmManager(psm.NewPsmStore(utils.PsmStorePath)),
 
 		imageServiceHandler:   image.NewImageService(),
 		networkServiceHandler: network.NewNetworkService(),
@@ -34,6 +36,7 @@ type ContainerService struct {
 	ipamHandler ipam.IpamHandler
 	ilmHandler  ilm.IlmHandler
 	csmHandler  csm.CsmHandler
+	psmHandler  psm.PsmHandler
 
 	imageServiceHandler   image.ImageServiceHandler
 	networkServiceHandler network.NetworkServiceHandler

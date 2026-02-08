@@ -14,6 +14,7 @@ type ServiceCreateModel struct {
 	Tty      bool
 	Name     string
 	BottleId string
+	PodId    string
 }
 
 type ServiceStartModel struct {
@@ -47,6 +48,7 @@ type ForwardInfo struct {
 type ContainerState struct {
 	ContainerId string   `json:"containerId"`
 	Name        string   `json:"name"`
+	PodId       string   `json:"podId,omitempty"`
 	State       string   `json:"state"`
 	Pid         int      `json:"pid"`
 	Repository  string   `json:"imageRepository"`
@@ -67,6 +69,7 @@ type ContainerStats struct {
 
 	ContainerID   string            `json:"container_id"`
 	ContainerName string            `json:"container_name"`
+	PodId         string            `json:"pod_id"`
 	SpiffeID      string            `json:"spiffe_id"`
 	Pid           int               `json:"pid"`
 	Status        string            `json:"status"`

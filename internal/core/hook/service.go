@@ -4,6 +4,7 @@ import (
 	"condenser/internal/core/container"
 	"condenser/internal/core/policy"
 	"condenser/internal/store/csm"
+	"condenser/internal/store/psm"
 	"condenser/internal/utils"
 	"fmt"
 )
@@ -13,6 +14,7 @@ func NewHookService() *HookService {
 		csmHandler:    csm.NewCsmManager(csm.NewCsmStore(utils.CsmStorePath)),
 		cgroupHandler: container.NewContaierService(),
 		policyHandler: policy.NewwServicePolicy(),
+		psmHandler:    psm.NewPsmManager(psm.NewPsmStore(utils.PsmStorePath)),
 	}
 }
 
@@ -20,6 +22,7 @@ type HookService struct {
 	csmHandler    csm.CsmHandler
 	cgroupHandler container.CgroupServiceHandler
 	policyHandler policy.PolicyServiceHandler
+	psmHandler    psm.PsmHandler
 }
 
 func (s *HookService) HookAction(stateParameter ServiceStateModel, eventType string) error {
@@ -40,6 +43,9 @@ func (s *HookService) HookAction(stateParameter ServiceStateModel, eventType str
 		// commit policy
 		if err := s.policyHandler.CommitPolicy(); err != nil {
 			return fmt.Errorf("policy commit failed: %w", err)
+		}
+		if err := s.updatePodNamespacesIfOwner(stateParameter.Id); err != nil {
+			return fmt.Errorf("update pod namespaces failed: %w", err)
 		}
 	case "poststart":
 		if err := s.csmHandler.UpdateContainer(stateParameter.Id, stateParameter.Status, stateParameter.Pid); err != nil {

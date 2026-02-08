@@ -64,6 +64,7 @@ func (h *RequestHandler) CreateContainer(w http.ResponseWriter, r *http.Request)
 			Network: req.Network,
 			Tty:     req.Tty,
 			Name:    req.Name,
+			PodId:   req.PodId,
 		},
 	)
 	if err != nil {

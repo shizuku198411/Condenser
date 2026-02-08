@@ -691,6 +691,131 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/pods": {
+            "get": {
+                "description": "list pod sandbox",
+                "tags": [
+                    "pods"
+                ],
+                "summary": "list pods",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "create a pod sandbox",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pods"
+                ],
+                "summary": "run pod sandbox",
+                "parameters": [
+                    {
+                        "description": "Pod Spec",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pod.RunPodRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/pods/{podId}": {
+            "get": {
+                "description": "get pod sandbox detail",
+                "tags": [
+                    "pods"
+                ],
+                "summary": "get pod detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pod ID",
+                        "name": "podId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "remove a pod sandbox",
+                "tags": [
+                    "pods"
+                ],
+                "summary": "remove pod sandbox",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pod ID",
+                        "name": "podId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/pods/{podId}/actions/stop": {
+            "post": {
+                "description": "stop a pod sandbox",
+                "tags": [
+                    "pods"
+                ],
+                "summary": "stop pod sandbox",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pod ID",
+                        "name": "podId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/policies": {
             "get": {
                 "description": "get policy",
@@ -905,6 +1030,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "raind0"
                 },
+                "podId": {
+                    "type": "string",
+                    "example": "pod-1234"
+                },
                 "port": {
                     "type": "array",
                     "items": {
@@ -980,6 +1109,44 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "bridge": {
+                    "type": "string"
+                }
+            }
+        },
+        "pod.RunPodRequest": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "ipcNS": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "networkNS": {
+                    "type": "string"
+                },
+                "uid": {
+                    "type": "string"
+                },
+                "userNS": {
+                    "type": "string"
+                },
+                "utsNS": {
                     "type": "string"
                 }
             }

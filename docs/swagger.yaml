@@ -29,6 +29,9 @@ definitions:
       network:
         example: raind0
         type: string
+      podId:
+        example: pod-1234
+        type: string
       port:
         example:
         - 8080:80
@@ -81,6 +84,31 @@ definitions:
   network.CreateBridgeRequest:
     properties:
       bridge:
+        type: string
+    type: object
+  pod.RunPodRequest:
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        type: object
+      ipcNS:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        type: string
+      namespace:
+        type: string
+      networkNS:
+        type: string
+      uid:
+        type: string
+      userNS:
+        type: string
+      utsNS:
         type: string
     type: object
   policy.AddPolicyRequest:
@@ -565,6 +593,88 @@ paths:
       summary: delete bridge
       tags:
       - Network
+  /v1/pods:
+    get:
+      description: list pod sandbox
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: list pods
+      tags:
+      - pods
+    post:
+      consumes:
+      - application/json
+      description: create a pod sandbox
+      parameters:
+      - description: Pod Spec
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/pod.RunPodRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: run pod sandbox
+      tags:
+      - pods
+  /v1/pods/{podId}:
+    delete:
+      description: remove a pod sandbox
+      parameters:
+      - description: Pod ID
+        in: path
+        name: podId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: remove pod sandbox
+      tags:
+      - pods
+    get:
+      description: get pod sandbox detail
+      parameters:
+      - description: Pod ID
+        in: path
+        name: podId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: get pod detail
+      tags:
+      - pods
+  /v1/pods/{podId}/actions/stop:
+    post:
+      description: stop a pod sandbox
+      parameters:
+      - description: Pod ID
+        in: path
+        name: podId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: stop pod sandbox
+      tags:
+      - pods
   /v1/policies:
     get:
       consumes:

@@ -36,6 +36,7 @@ func (s *ContainerService) GetContainerList() ([]ContainerState, error) {
 		containerStateList = append(containerStateList, ContainerState{
 			ContainerId: c.ContainerId,
 			Name:        c.ContainerName,
+			PodId:       c.PodId,
 			State:       c.State,
 			Pid:         c.Pid,
 			Repository:  c.Repository,
@@ -79,6 +80,7 @@ func (s *ContainerService) GetContainerById(containerId string) (ContainerState,
 
 	return ContainerState{
 		ContainerId: containerState.ContainerId,
+		PodId:       containerState.PodId,
 		State:       containerState.State,
 		Pid:         containerState.Pid,
 		Repository:  containerState.Repository,

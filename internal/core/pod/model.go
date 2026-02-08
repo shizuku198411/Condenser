@@ -1,0 +1,32 @@
+package pod
+
+import "time"
+
+type ServiceRunModel struct {
+	Name        string
+	Namespace   string
+	UID         string
+	NetworkNS   string
+	IPCNS       string
+	UTSNS       string
+	UserNS      string
+	Labels      map[string]string
+	Annotations map[string]string
+}
+
+type PodState struct {
+	PodId       string            `json:"podId"`
+	Name        string            `json:"name"`
+	Namespace   string            `json:"namespace"`
+	UID         string            `json:"uid"`
+	State       string            `json:"state"`
+	NetworkNS   string            `json:"networkNS"`
+	IPCNS       string            `json:"ipcNS"`
+	UTSNS       string            `json:"utsNS"`
+	UserNS      string            `json:"userNS"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+	CreatedAt   time.Time         `json:"createdAt"`
+	StartedAt   time.Time         `json:"startedAt"`
+	StoppedAt   time.Time         `json:"stoppedAt"`
+}

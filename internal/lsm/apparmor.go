@@ -49,7 +49,6 @@ profile raind-default flags=(attach_disconnected,mediate_deleted) {
 
   # ---- Dangerous capabilities (deny) ----
   # Deny Capabilities
-  deny capability sys_admin,
   deny capability sys_module,
   deny capability sys_rawio,
   deny capability sys_boot,

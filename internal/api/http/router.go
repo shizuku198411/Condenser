@@ -15,6 +15,7 @@ import (
 	"condenser/internal/api/http/logger"
 	logHandler "condenser/internal/api/http/logs"
 	networkHandler "condenser/internal/api/http/network"
+	podHandler "condenser/internal/api/http/pod"
 	policyHandler "condenser/internal/api/http/policy"
 	websocketHandler "condenser/internal/api/http/websocket"
 	"condenser/internal/utils"
@@ -55,6 +56,7 @@ func NewApiRouter() *chi.Mux {
 	execSocketHandler := websocketHandler.NewExecRequestHandler()
 	policyHandler := policyHandler.NewRequestHandler()
 	logHandler := logHandler.NewRequestHandler()
+	podHandler := podHandler.NewRequestHandler()
 
 	// middleware
 	r.Use(middleware.RequestID)
@@ -89,6 +91,13 @@ func NewApiRouter() *chi.Mux {
 	r.Post("/v1/containers/{containerId}/actions/stop", containerHandler.StopContainer)       // stop container
 	r.Post("/v1/containers/{containerId}/actions/exec", containerHandler.ExecContainer)       // exec container
 	r.Delete("/v1/containers/{containerId}/actions/delete", containerHandler.DeleteContainer) // delete container
+
+	// == pods ==
+	r.Get("/v1/pods", podHandler.GetPodList)                    // list pods
+	r.Post("/v1/pods", podHandler.RunPod)                       // run pod sandbox
+	r.Get("/v1/pods/{podId}", podHandler.GetPodById)            // get pod sandbox detail
+	r.Post("/v1/pods/{podId}/actions/stop", podHandler.StopPod) // stop pod sandbox
+	r.Delete("/v1/pods/{podId}", podHandler.RemovePod)          // remove pod sandbox
 
 	// == images ==
 	r.Get("/v1/images", imageHandler.GetImageList)      // get image list

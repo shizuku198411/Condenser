@@ -67,15 +67,21 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	}
 
 	// 5. allocate address
+	var (
+		containerGateway string
+		containerAddr    string
+	)
 	bridgeInterface := createParameter.Network
 	if bridgeInterface == "" {
 		bridgeInterface = "raind0"
 	}
-	containerGateway, containerAddr, err := s.allocateAddress(containerId, bridgeInterface)
-	if err != nil {
-		return "", err
+	if createParameter.PodId == "" || s.psmHandler.IsPodOwner(createParameter.PodId) {
+		containerGateway, containerAddr, err = s.allocateAddress(containerId, bridgeInterface)
+		if err != nil {
+			return "", err
+		}
+		rollbackFlag.AllocateAddr = true
 	}
-	rollbackFlag.AllocateAddr = true
 
 	// 6. create CSM entry with state=creating, pid=0, creatingAt=nil
 	//    command=if user specified, use it. if not, use image config's command
@@ -102,6 +108,7 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 		containerName,
 		createParameter.BottleId,
 		logPath,
+		createParameter.PodId,
 	); err != nil {
 		return "", err
 	}
@@ -127,7 +134,7 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	// 10. create spec (config.json)
 	if err := s.createContainerSpec(
 		containerId, createParameter, imageRepo, imageRef, imageConfig,
-		bridgeInterface, containerAddr, containerGateway,
+		bridgeInterface, containerAddr, containerGateway, createParameter.PodId,
 	); err != nil {
 		return "", fmt.Errorf("create spec failed: %w", err)
 	}
@@ -139,8 +146,14 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	rollbackFlag.ForwardRule = true
 
 	// 12. create container
-	if err := s.createContainer(containerId, createParameter.Tty); err != nil {
-		return "", fmt.Errorf("create container failed: %w", err)
+	if createParameter.PodId == "" || s.psmHandler.IsPodOwner(createParameter.PodId) {
+		if err := s.createContainer(containerId, createParameter.Tty); err != nil {
+			return "", fmt.Errorf("create container failed: %w", err)
+		}
+	} else {
+		if err := s.joinContainer(containerId, createParameter.Tty, createParameter.PodId); err != nil {
+			return "", fmt.Errorf("create container failed: %w", err)
+		}
 	}
 
 	return containerId, nil
@@ -308,7 +321,7 @@ func (s *ContainerService) allocateAddress(containerId string, bridgeInterface s
 func (s *ContainerService) createContainerSpec(
 	containerId string, createParameter ServiceCreateModel,
 	imageRepo, imageRef string, imageConfig image.ImageConfigFile,
-	bridge, containerAddr, containerGateway string,
+	bridge, containerAddr, containerGateway string, podId string,
 ) error {
 
 	// spec parametr
@@ -330,10 +343,34 @@ func (s *ContainerService) createContainerSpec(
 	}
 
 	// namespace
-	namespace := []string{"mount", "network", "uts", "pid", "ipc", "user", "cgroup"}
+	var namespace []string
+	var nspath []string
+	if podId != "" {
+		// retrieve pod path
+		podInfo, err := s.psmHandler.GetPodById(podId)
+		if err != nil {
+			return err
+		}
+		if podInfo.UserNS != "" && podInfo.NetworkNS != "" && podInfo.IPCNS != "" && podInfo.UTSNS != "" {
+			networkPath := "network=" + podInfo.NetworkNS
+			ipcPath := "ipc=" + podInfo.IPCNS
+			utsPath := "uts=" + podInfo.UTSNS
+			nspath = []string{networkPath, ipcPath, utsPath}
+			namespace = []string{"mount", "pid", "cgroup"}
+		} else {
+			namespace = []string{"mount", "network", "uts", "pid", "ipc", "user", "cgroup"}
+		}
+	} else {
+		namespace = []string{"mount", "network", "uts", "pid", "ipc", "user", "cgroup"}
+	}
 
 	// hostname
-	hostname := containerId
+	var hostname string
+	if podId == "" {
+		hostname = containerId
+	} else {
+		hostname = podId[:12]
+	}
 
 	// env
 	// image predefined env
@@ -450,6 +487,7 @@ func (s *ContainerService) createContainerSpec(
 		Cwd:                    cwd,
 		Command:                cmd,
 		Namespace:              namespace,
+		NSPath:                 nspath,
 		Hostname:               hostname,
 		Env:                    envs,
 		Mount:                  mount,
@@ -485,7 +523,19 @@ func (s *ContainerService) createContainerSpec(
 
 func (s *ContainerService) createContainer(containerId string, tty bool) error {
 	// runtime: create
-	if err := s.runtimeHandler.Create(runtime.CreateModel{ContainerId: containerId, Tty: tty}); err != nil {
+	if err := s.runtimeHandler.Create(runtime.CreateModel{ContainerId: containerId, Tty: tty}, 0); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ContainerService) joinContainer(containerId string, tty bool, podId string) error {
+	podOwner, err := s.psmHandler.GetPodOwnerPid(podId)
+	if err != nil {
+		return err
+	}
+	// runtime: create
+	if err := s.runtimeHandler.Create(runtime.CreateModel{ContainerId: containerId, Tty: tty}, podOwner); err != nil {
 		return err
 	}
 	return nil

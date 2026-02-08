@@ -10,6 +10,7 @@ type CreateContainerRequest struct {
 	Network string   `json:"network" example:"raind0"`
 	Tty     bool     `json:"tty" example:"false"`
 	Name    string   `json:"name"  example:"my-container"`
+	PodId   string   `json:"podId" example:"pod-1234"`
 }
 
 type CreateContainerResponse struct {

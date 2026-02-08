@@ -428,6 +428,7 @@ func (s *ImageService) runCommandInContainer(state *buildState, bridge string, s
 		containerId,
 		"",
 		"",
+		"",
 	); err != nil {
 		return err
 	}
@@ -471,7 +472,7 @@ func (s *ImageService) runCommandInContainer(state *buildState, bridge string, s
 	if err := copyBuildConfig(containerDir, containerId); err != nil {
 		return err
 	}
-	if err := runtimeHandler.Create(runtime.CreateModel{ContainerId: containerId, Tty: true}); err != nil {
+	if err := runtimeHandler.Create(runtime.CreateModel{ContainerId: containerId, Tty: true}, 0); err != nil {
 		return err
 	}
 	if err := runtimeHandler.Start(runtime.StartModel{ContainerId: containerId, Tty: true}); err != nil {

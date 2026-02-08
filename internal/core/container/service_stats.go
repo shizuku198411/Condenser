@@ -33,6 +33,7 @@ func (s *ContainerService) GetContainerStats(target string) (ContainerStats, err
 	}
 	stat.Status = containerInfo.State
 	stat.ContainerName = containerInfo.ContainerName
+	stat.PodId = containerInfo.PodId
 	stat.SpiffeID = containerInfo.SpiffeId
 	stat.Pid = containerInfo.Pid
 	stat.ExitCode = containerInfo.ExitCode
@@ -71,6 +72,7 @@ func (s *ContainerService) ListContainerStats() ([]ContainerStats, error) {
 		spiffe string
 		pid    int
 		state  string
+		podId  string
 		info   struct {
 			exitCode    int
 			reason      string
@@ -98,6 +100,7 @@ func (s *ContainerService) ListContainerStats() ([]ContainerStats, error) {
 			spiffe string
 			pid    int
 			state  string
+			podId  string
 			info   struct {
 				exitCode    int
 				reason      string
@@ -122,6 +125,7 @@ func (s *ContainerService) ListContainerStats() ([]ContainerStats, error) {
 			spiffe: c.SpiffeId,
 			pid:    c.Pid,
 			state:  c.State,
+			podId:  c.PodId,
 			info: struct {
 				exitCode    int
 				reason      string
@@ -171,6 +175,7 @@ func (s *ContainerService) ListContainerStats() ([]ContainerStats, error) {
 			stat.SpiffeID = info.spiffe
 			stat.Pid = info.pid
 			stat.Status = info.state
+			stat.PodId = info.podId
 			stat.ExitCode = info.info.exitCode
 			stat.Reason = info.info.reason
 			stat.Message = info.info.message

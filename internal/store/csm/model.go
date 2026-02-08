@@ -5,6 +5,7 @@ import "time"
 type ContainerInfo struct {
 	ContainerId   string            `json:"containerId"`
 	ContainerName string            `json:"name"`
+	PodId         string            `json:"podId,omitempty"`
 	SpiffeId      string            `json:"spiffeId"`
 	State         string            `json:"state"`
 	Pid           int               `json:"pid"`
