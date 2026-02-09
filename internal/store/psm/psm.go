@@ -94,6 +94,22 @@ func (m *PsmManager) UpdatePodNamespaces(ownerPid int, podId, networkNS, ipcNS, 
 	})
 }
 
+func (m *PsmManager) ResetPodNamespaces(podId string) error {
+	return m.psmStore.withLock(func(st *PodState) error {
+		p, ok := st.Pods[podId]
+		if !ok {
+			return fmt.Errorf("podId=%s not found", podId)
+		}
+		p.OwnerPid = 0
+		p.NetworkNS = ""
+		p.IPCNS = ""
+		p.UTSNS = ""
+		p.UserNS = ""
+		st.Pods[podId] = p
+		return nil
+	})
+}
+
 func (m *PsmManager) GetPodList() ([]PodInfo, error) {
 	var podList []PodInfo
 	err := m.psmStore.withRLock(func(st *PodState) error {

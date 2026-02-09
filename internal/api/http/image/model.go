@@ -26,6 +26,7 @@ type ImageStatusResponse struct {
 	RepoDigests []string  `json:"repoDigests"`
 	SizeBytes   int64     `json:"sizeBytes"`
 	CreatedAt   time.Time `json:"createdAt"`
+	User        string    `json:"user"`
 }
 
 // == fs info ==

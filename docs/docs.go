@@ -708,7 +708,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "create a pod sandbox",
+                "description": "create a pod sandbox (no container start)",
                 "consumes": [
                     "application/json"
                 ],
@@ -718,7 +718,7 @@ const docTemplate = `{
                 "tags": [
                     "pods"
                 ],
-                "summary": "run pod sandbox",
+                "summary": "create pod sandbox",
                 "parameters": [
                     {
                         "description": "Pod Spec",
@@ -726,7 +726,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/pod.RunPodRequest"
+                            "$ref": "#/definitions/pod.CreatePodRequest"
                         }
                     }
                 ],
@@ -771,6 +771,32 @@ const docTemplate = `{
                     "pods"
                 ],
                 "summary": "remove pod sandbox",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pod ID",
+                        "name": "podId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/pods/{podId}/actions/start": {
+            "post": {
+                "description": "start a pod sandbox",
+                "tags": [
+                    "pods"
+                ],
+                "summary": "start pod sandbox",
                 "parameters": [
                     {
                         "type": "string",
@@ -1113,7 +1139,7 @@ const docTemplate = `{
                 }
             }
         },
-        "pod.RunPodRequest": {
+        "pod.CreatePodRequest": {
             "type": "object",
             "properties": {
                 "annotations": {

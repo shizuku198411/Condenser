@@ -1,6 +1,10 @@
 package hook
 
-import "fmt"
+import (
+	"condenser/internal/utils"
+	"fmt"
+	"strings"
+)
 
 func (s *HookService) updatePodNamespacesIfOwner(containerId string) error {
 	containerInfo, err := s.csmHandler.GetContainerById(containerId)
@@ -8,6 +12,9 @@ func (s *HookService) updatePodNamespacesIfOwner(containerId string) error {
 		return err
 	}
 	if containerInfo.PodId == "" {
+		return nil
+	}
+	if !strings.HasPrefix(containerInfo.ContainerName, utils.PodInfraContainerNamePrefix) {
 		return nil
 	}
 	if containerInfo.Pid <= 0 {

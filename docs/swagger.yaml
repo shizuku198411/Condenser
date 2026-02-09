@@ -86,7 +86,7 @@ definitions:
       bridge:
         type: string
     type: object
-  pod.RunPodRequest:
+  pod.CreatePodRequest:
     properties:
       annotations:
         additionalProperties:
@@ -607,14 +607,14 @@ paths:
     post:
       consumes:
       - application/json
-      description: create a pod sandbox
+      description: create a pod sandbox (no container start)
       parameters:
       - description: Pod Spec
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/pod.RunPodRequest'
+          $ref: '#/definitions/pod.CreatePodRequest'
       produces:
       - application/json
       responses:
@@ -622,7 +622,7 @@ paths:
           description: Created
           schema:
             $ref: '#/definitions/utils.ApiResponse'
-      summary: run pod sandbox
+      summary: create pod sandbox
       tags:
       - pods
   /v1/pods/{podId}:
@@ -656,6 +656,23 @@ paths:
           schema:
             $ref: '#/definitions/utils.ApiResponse'
       summary: get pod detail
+      tags:
+      - pods
+  /v1/pods/{podId}/actions/start:
+    post:
+      description: start a pod sandbox
+      parameters:
+      - description: Pod ID
+        in: path
+        name: podId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: start pod sandbox
       tags:
       - pods
   /v1/pods/{podId}/actions/stop:

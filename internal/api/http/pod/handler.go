@@ -19,23 +19,23 @@ type RequestHandler struct {
 	serviceHandler pod.PodServiceHandler
 }
 
-// RunPod godoc
-// @Summary run pod sandbox
-// @Description create a pod sandbox
+// CreatePod godoc
+// @Summary create pod sandbox
+// @Description create a pod sandbox (no container start)
 // @Tags pods
 // @Accept json
 // @Produce json
-// @Param request body RunPodRequest true "Pod Spec"
+// @Param request body CreatePodRequest true "Pod Spec"
 // @Success 201 {object} apimodel.ApiResponse
 // @Router /v1/pods [post]
-func (h *RequestHandler) RunPod(w http.ResponseWriter, r *http.Request) {
-	var req RunPodRequest
+func (h *RequestHandler) CreatePod(w http.ResponseWriter, r *http.Request) {
+	var req CreatePodRequest
 	if err := apimodel.DecodeRequestBody(r, &req); err != nil {
-		apimodel.RespondFail(w, http.StatusBadRequest, "invalid json: "+err.Error(), RunPodResponse{PodId: ""})
+		apimodel.RespondFail(w, http.StatusBadRequest, "invalid json: "+err.Error(), CreatePodResponse{PodId: ""})
 		return
 	}
 
-	podId, err := h.serviceHandler.Run(pod.ServiceRunModel{
+	podId, err := h.serviceHandler.Create(pod.ServiceCreateModel{
 		Name:        req.Name,
 		Namespace:   req.Namespace,
 		UID:         req.UID,
@@ -47,11 +47,34 @@ func (h *RequestHandler) RunPod(w http.ResponseWriter, r *http.Request) {
 		Annotations: req.Annotations,
 	})
 	if err != nil {
-		apimodel.RespondFail(w, http.StatusInternalServerError, "run pod failed: "+err.Error(), RunPodResponse{PodId: ""})
+		apimodel.RespondFail(w, http.StatusInternalServerError, "create pod failed: "+err.Error(), CreatePodResponse{PodId: ""})
 		return
 	}
 
-	apimodel.RespondSuccess(w, http.StatusOK, "pod created", RunPodResponse{PodId: podId})
+	apimodel.RespondSuccess(w, http.StatusOK, "pod created", CreatePodResponse{PodId: podId})
+}
+
+// StartPod godoc
+// @Summary start pod sandbox
+// @Description start a pod sandbox
+// @Tags pods
+// @Param podId path string true "Pod ID"
+// @Success 200 {object} apimodel.ApiResponse
+// @Router /v1/pods/{podId}/actions/start [post]
+func (h *RequestHandler) StartPod(w http.ResponseWriter, r *http.Request) {
+	podId := chi.URLParam(r, "podId")
+	if podId == "" {
+		apimodel.RespondFail(w, http.StatusBadRequest, "missing podId", StartPodResponse{PodId: ""})
+		return
+	}
+
+	result, err := h.serviceHandler.Start(podId)
+	if err != nil {
+		apimodel.RespondFail(w, http.StatusInternalServerError, "start pod failed: "+err.Error(), StartPodResponse{PodId: podId})
+		return
+	}
+
+	apimodel.RespondSuccess(w, http.StatusOK, "pod started", StartPodResponse{PodId: result})
 }
 
 // StopPod godoc

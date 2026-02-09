@@ -12,6 +12,7 @@ type CsmHandler interface {
 	UpdateSpiffe(containerId string, spiffe string) error
 	GetContainerList() ([]ContainerInfo, error)
 	GetContainerById(containerId string) (ContainerInfo, error)
+	GetContainersByPodId(podId string) ([]ContainerInfo, error)
 	IsNameAlreadyUsed(name string) bool
 	GetContainerIdByName(name string) (string, error)
 	GetContainerNameById(containerId string) (string, error)

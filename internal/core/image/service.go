@@ -111,10 +111,16 @@ func (s *ImageService) parseImageRef(imageStr string) (repository, reference str
 	// - library/ubuntu:24.04 	-> library/ubuntu:24.04
 	// - nginx@sha256:... 		-> library/nginx@sha256:...
 
-	var repo, ref string
+	const defaultRegistry = "registry-1.docker.io"
+	var (
+		repo     string
+		ref      string
+		registry string
+	)
 	if strings.Contains(imageStr, "@") {
 		parts := strings.SplitN(imageStr, "@", 2)
-		repo, ref = parts[0], parts[1]
+		repo = parts[0]
+		ref = parts[1]
 	} else {
 		parts := strings.SplitN(imageStr, ":", 2)
 		repo = parts[0]
@@ -128,8 +134,21 @@ func (s *ImageService) parseImageRef(imageStr string) (repository, reference str
 	if repo == "" {
 		return "", "", errors.New("empty repository")
 	}
-	if !strings.Contains(repo, "/") {
-		repo = "library/" + repo
+
+	if strings.Contains(repo, "/") {
+		first := strings.SplitN(repo, "/", 2)[0]
+		if isRegistryHost(first) {
+			registry = normalizeRegistry(first)
+			repo = strings.SplitN(repo, "/", 2)[1]
+		}
+	}
+
+	if registry == "" || registry == defaultRegistry {
+		if !strings.Contains(repo, "/") {
+			repo = "library/" + repo
+		}
+	} else {
+		repo = registry + "/" + repo
 	}
 	return repo, ref, nil
 }
@@ -176,6 +195,13 @@ func (s *ImageService) GetImageStatus(imageStr string) (ImageStatusInfo, error) 
 		return ImageStatusInfo{}, err
 	}
 
+	user := ""
+	if configPath, err := s.ilmHandler.GetConfigPath(repo, ref); err == nil {
+		if cfg, err := s.GetImageConfig(configPath); err == nil {
+			user = cfg.Config.User
+		}
+	}
+
 	bundlePath, err := s.ilmHandler.GetBundlePath(repo, ref)
 	if err != nil {
 		return ImageStatusInfo{}, err
@@ -183,6 +209,11 @@ func (s *ImageService) GetImageStatus(imageStr string) (ImageStatusInfo, error) 
 
 	manifestBytes, err := s.readManifest(bundlePath)
 	if err != nil {
+		if s.filesystemHandler.IsNotExist(err) {
+			_ = s.ilmHandler.RemoveImage(repo, ref)
+			_ = s.filesystemHandler.RemoveAll(bundlePath)
+			return ImageStatusInfo{}, fmt.Errorf("%s:%s not found", repo, ref)
+		}
 		return ImageStatusInfo{}, err
 	}
 
@@ -215,6 +246,7 @@ func (s *ImageService) GetImageStatus(imageStr string) (ImageStatusInfo, error) 
 		RepoDigests: repoDigests,
 		SizeBytes:   sizeBytes,
 		CreatedAt:   info.CreatedAt,
+		User:        user,
 	}, nil
 }
 
@@ -273,4 +305,20 @@ func (s *ImageService) dirSize(path string) (int64, error) {
 		return 0, fmt.Errorf("calc dir size failed: %w", err)
 	}
 	return total, nil
+}
+
+func isRegistryHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	return strings.Contains(host, ".") || strings.Contains(host, ":")
+}
+
+func normalizeRegistry(reg string) string {
+	switch reg {
+	case "docker.io", "index.docker.io":
+		return "registry-1.docker.io"
+	default:
+		return reg
+	}
 }

@@ -25,6 +25,7 @@ type ImageConfigObject struct {
 	Cmd        []string `json:"Cmd"`
 	Entrypoint []string `json:"Entrypoint"`
 	WorkingDir string   `json:"WorkingDir"`
+	User       string   `json:"User"`
 }
 
 type ImageConfigFile struct {
@@ -45,6 +46,7 @@ type ImageStatusInfo struct {
 	RepoDigests []string  `json:"repoDigests"`
 	SizeBytes   int64     `json:"sizeBytes"`
 	CreatedAt   time.Time `json:"createdAt"`
+	User        string    `json:"user"`
 }
 
 type ImageFsInfo struct {

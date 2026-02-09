@@ -29,7 +29,7 @@ func (s *ContainerService) GetContainerStats(target string) (ContainerStats, err
 	}
 	stat, ok := statsMap[containerId]
 	if !ok {
-		return ContainerStats{}, fmt.Errorf("stats not found for container: %s", containerId)
+		stat = ContainerStats{ContainerID: containerId}
 	}
 	stat.Status = containerInfo.State
 	stat.ContainerName = containerInfo.ContainerName
@@ -202,6 +202,9 @@ func (s *ContainerService) ListContainerStats() ([]ContainerStats, error) {
 func (s *ContainerService) loadLatestStats() (map[string]ContainerStats, error) {
 	f, err := s.filesystemHandler.Open(utils.MetricsLogPath)
 	if err != nil {
+		if s.filesystemHandler.IsNotExist(err) {
+			return map[string]ContainerStats{}, nil
+		}
 		return nil, err
 	}
 	defer f.Close()

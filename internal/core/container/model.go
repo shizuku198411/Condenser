@@ -3,18 +3,19 @@ package container
 import "time"
 
 type ServiceCreateModel struct {
-	Image    string
-	Os       string
-	Arch     string
-	Command  []string
-	Port     []string
-	Mount    []string
-	Env      []string
-	Network  string
-	Tty      bool
-	Name     string
-	BottleId string
-	PodId    string
+	Image      string
+	Os         string
+	Arch       string
+	Command    []string
+	Port       []string
+	Mount      []string
+	Env        []string
+	Network    string
+	Tty        bool
+	Name       string
+	BottleId   string
+	PodId      string
+	IsPodInfra bool
 }
 
 type ServiceStartModel struct {

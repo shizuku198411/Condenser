@@ -1,6 +1,6 @@
 package pod
 
-type RunPodRequest struct {
+type CreatePodRequest struct {
 	Name        string            `json:"name"`
 	Namespace   string            `json:"namespace"`
 	UID         string            `json:"uid"`
@@ -12,7 +12,11 @@ type RunPodRequest struct {
 	Annotations map[string]string `json:"annotations"`
 }
 
-type RunPodResponse struct {
+type CreatePodResponse struct {
+	PodId string `json:"podId"`
+}
+
+type StartPodResponse struct {
 	PodId string `json:"podId"`
 }
 

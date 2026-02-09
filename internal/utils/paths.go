@@ -33,4 +33,7 @@ const (
 	EnrichedLogPath = "/var/log/raind/raind_netflow.jsonl"
 	DnsLogPath      = "/var/log/raind/raind_dns.jsonl"
 	MetricsLogPath  = "/var/log/raind/raind_metrics.jsonl"
+
+	PodInfraImage               = "registry.k8s.io/pause:3.9"
+	PodInfraContainerNamePrefix = "condenser-pod-infra-"
 )

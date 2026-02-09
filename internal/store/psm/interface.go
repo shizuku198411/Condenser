@@ -9,6 +9,7 @@ type PsmHandler interface {
 	RemovePod(podId string) error
 	UpdatePod(podId string, state string) error
 	UpdatePodNamespaces(ownerPid int, podId, networkNS, ipcNS, utsNS, userNS string) error
+	ResetPodNamespaces(podId string) error
 	GetPodList() ([]PodInfo, error)
 	GetPodById(podId string) (PodInfo, error)
 	IsNameAlreadyUsed(name, namespace string) bool

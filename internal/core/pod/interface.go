@@ -1,7 +1,8 @@
 package pod
 
 type PodServiceHandler interface {
-	Run(runParameter ServiceRunModel) (string, error)
+	Create(createParameter ServiceCreateModel) (string, error)
+	Start(podId string) (string, error)
 	Stop(podId string) (string, error)
 	Remove(podId string) (string, error)
 	GetPodList() ([]PodState, error)

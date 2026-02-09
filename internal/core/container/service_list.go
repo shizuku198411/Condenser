@@ -1,11 +1,26 @@
 package container
 
+import "condenser/internal/store/csm"
+
 // == service: get container list ==
 func (s *ContainerService) GetContainerList() ([]ContainerState, error) {
 	containerList, err := s.csmHandler.GetContainerList()
 	if err != nil {
 		return nil, err
 	}
+	return s.buildContainerStateList(containerList)
+}
+
+// == service: get container list by pod ==
+func (s *ContainerService) GetContainersByPodId(podId string) ([]ContainerState, error) {
+	containerList, err := s.csmHandler.GetContainersByPodId(podId)
+	if err != nil {
+		return nil, err
+	}
+	return s.buildContainerStateList(containerList)
+}
+
+func (s *ContainerService) buildContainerStateList(containerList []csm.ContainerInfo) ([]ContainerState, error) {
 	poolList, err := s.ipamHandler.GetPoolList()
 	if err != nil {
 		return nil, err

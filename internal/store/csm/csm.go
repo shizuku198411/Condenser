@@ -119,6 +119,20 @@ func (m *CsmManager) GetContainerList() ([]ContainerInfo, error) {
 	return containerList, err
 }
 
+func (m *CsmManager) GetContainersByPodId(podId string) ([]ContainerInfo, error) {
+	var containerList []ContainerInfo
+	err := m.csmStore.withRLock(func(st *ContainerState) error {
+		for _, c := range st.Containers {
+			if c.PodId != podId {
+				continue
+			}
+			containerList = append(containerList, c)
+		}
+		return nil
+	})
+	return containerList, err
+}
+
 func (m *CsmManager) GetContainerById(containerId string) (ContainerInfo, error) {
 	var containerInfo ContainerInfo
 	err := m.csmStore.withRLock(func(st *ContainerState) error {

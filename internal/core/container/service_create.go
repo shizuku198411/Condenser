@@ -4,19 +4,29 @@ import (
 	"condenser/internal/core/image"
 	"condenser/internal/core/network"
 	"condenser/internal/runtime"
+	"condenser/internal/store/psm"
 	"condenser/internal/utils"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"al.essio.dev/pkg/shellescape"
 )
 
 // == service: create ==
 func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string, err error) {
+	if createParameter.PodId != "" && !createParameter.IsPodInfra {
+		if err := s.ensurePodInfra(createParameter.PodId, createParameter.Network); err != nil {
+			return "", err
+		}
+	}
+
 	// 1. generate container id and name
 	containerId := utils.NewUlid()[:12]
 	//    if name is not set, generate a random name
@@ -175,7 +185,9 @@ func (s *ContainerService) rollback(rollbackFlag RollbackFlag, containerId strin
 	}
 	if rollbackFlag.CSMEntry {
 		if err := s.csmHandler.RemoveContainer(containerId); err != nil {
-			return err
+			if !isNotFoundErr(err) {
+				return err
+			}
 		}
 	}
 	if rollbackFlag.DirectoryEnv {
@@ -185,7 +197,9 @@ func (s *ContainerService) rollback(rollbackFlag RollbackFlag, containerId strin
 	}
 	if rollbackFlag.CgroupEntry {
 		if err := s.deleteCgroupSubtree(containerId); err != nil {
-			return err
+			if !isNotFoundErr(err) && !isBusyErr(err) {
+				return err
+			}
 		}
 	}
 	if rollbackFlag.ForwardRule {
@@ -194,6 +208,22 @@ func (s *ContainerService) rollback(rollbackFlag RollbackFlag, containerId strin
 		}
 	}
 	return nil
+}
+
+func isNotFoundErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "not found")
+}
+
+func isBusyErr(err error) bool {
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		return errors.Is(pathErr.Err, syscall.EBUSY)
+	}
+	return errors.Is(err, syscall.EBUSY)
 }
 
 func (s *ContainerService) generateContainerName() (string, error) {
@@ -275,6 +305,9 @@ func (s *ContainerService) setupEtcFiles(containerId string, containerAddr strin
 	}
 
 	// /etc/resolv.conf
+	if containerGateway == "" {
+		containerGateway = "8.8.8.8"
+	}
 	resolvPath := filepath.Join(etcDir, "resolv.conf")
 	resolvData := "nameserver " + containerGateway + "\n"
 	if err := s.filesystemHandler.WriteFile(resolvPath, []byte(resolvData), 0o644); err != nil {
@@ -351,7 +384,14 @@ func (s *ContainerService) createContainerSpec(
 		if err != nil {
 			return err
 		}
-		if podInfo.UserNS != "" && podInfo.NetworkNS != "" && podInfo.IPCNS != "" && podInfo.UTSNS != "" {
+		nsReady := podInfo.UserNS != "" && podInfo.NetworkNS != "" && podInfo.IPCNS != "" && podInfo.UTSNS != ""
+		if nsReady {
+			if !s.nsPathExists(podInfo.NetworkNS) || !s.nsPathExists(podInfo.IPCNS) || !s.nsPathExists(podInfo.UTSNS) || !s.nsPathExists(podInfo.UserNS) {
+				_ = s.psmHandler.ResetPodNamespaces(podId)
+				nsReady = false
+			}
+		}
+		if nsReady {
 			networkPath := "network=" + podInfo.NetworkNS
 			ipcPath := "ipc=" + podInfo.IPCNS
 			utsPath := "uts=" + podInfo.UTSNS
@@ -534,11 +574,120 @@ func (s *ContainerService) joinContainer(containerId string, tty bool, podId str
 	if err != nil {
 		return err
 	}
+	if podOwner <= 0 || !s.nsPathExists(fmt.Sprintf("/proc/%d/ns/user", podOwner)) {
+		_ = s.psmHandler.ResetPodNamespaces(podId)
+		return s.createContainer(containerId, tty)
+	}
 	// runtime: create
 	if err := s.runtimeHandler.Create(runtime.CreateModel{ContainerId: containerId, Tty: tty}, podOwner); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (s *ContainerService) nsPathExists(path string) bool {
+	if path == "" {
+		return false
+	}
+	if _, err := os.Stat(path); err != nil {
+		return false
+	}
+	return true
+}
+
+func (s *ContainerService) ensurePodInfra(podId string, network string) error {
+	podInfo, err := s.psmHandler.GetPodById(podId)
+	if err != nil {
+		return err
+	}
+
+	if s.podNamespacesReady(podInfo) {
+		return nil
+	}
+
+	if s.podNamespacesPopulated(podInfo) {
+		_ = s.psmHandler.ResetPodNamespaces(podId)
+	}
+
+	infra, err := s.findPodInfraContainer(podId)
+	if err == nil {
+		if infra.State == "running" {
+			_, _ = s.Stop(ServiceStopModel{ContainerId: infra.ContainerId})
+		}
+		_, _ = s.Delete(ServiceDeleteModel{ContainerId: infra.ContainerId})
+	}
+
+	infraName := s.podInfraName(podId)
+	infraId, err := s.Create(ServiceCreateModel{
+		Image:      utils.PodInfraImage,
+		Network:    network,
+		Tty:        false,
+		Name:       infraName,
+		PodId:      podId,
+		IsPodInfra: true,
+	})
+	if err != nil {
+		return err
+	}
+	if _, err := s.Start(ServiceStartModel{ContainerId: infraId, Tty: false}); err != nil {
+		_, _ = s.Delete(ServiceDeleteModel{ContainerId: infraId})
+		return err
+	}
+
+	return s.waitForPodNamespaces(podId)
+}
+
+func (s *ContainerService) findPodInfraContainer(podId string) (ContainerState, error) {
+	containers, err := s.GetContainersByPodId(podId)
+	if err != nil {
+		return ContainerState{}, err
+	}
+	for _, c := range containers {
+		if s.isPodInfraName(c.Name, podId) {
+			return c, nil
+		}
+	}
+	return ContainerState{}, fmt.Errorf("pod infra not found")
+}
+
+func (s *ContainerService) isPodInfraName(name, podId string) bool {
+	if strings.HasPrefix(name, utils.PodInfraContainerNamePrefix) {
+		return true
+	}
+	return name == s.podInfraName(podId)
+}
+
+func (s *ContainerService) podInfraName(podId string) string {
+	short := podId
+	if len(short) > 12 {
+		short = podId[:12]
+	}
+	return utils.PodInfraContainerNamePrefix + short
+}
+
+func (s *ContainerService) podNamespacesPopulated(podInfo psm.PodInfo) bool {
+	return podInfo.UserNS != "" || podInfo.NetworkNS != "" || podInfo.IPCNS != "" || podInfo.UTSNS != ""
+}
+
+func (s *ContainerService) podNamespacesReady(podInfo psm.PodInfo) bool {
+	if podInfo.UserNS == "" || podInfo.NetworkNS == "" || podInfo.IPCNS == "" || podInfo.UTSNS == "" {
+		return false
+	}
+	return s.nsPathExists(podInfo.NetworkNS) && s.nsPathExists(podInfo.IPCNS) && s.nsPathExists(podInfo.UTSNS) && s.nsPathExists(podInfo.UserNS)
+}
+
+func (s *ContainerService) waitForPodNamespaces(podId string) error {
+	for i := 0; i < 50; i++ {
+		podInfo, err := s.psmHandler.GetPodById(podId)
+		if err != nil {
+			return err
+		}
+		if s.podNamespacesReady(podInfo) {
+			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return fmt.Errorf("pod namespaces not ready: %s", podId)
 }
 
 func (s *ContainerService) parseImageRef(imageStr string) (repository, reference string, err error) {
@@ -548,10 +697,16 @@ func (s *ContainerService) parseImageRef(imageStr string) (repository, reference
 	// - library/ubuntu:24.04 	-> library/ubuntu:24.04
 	// - nginx@sha256:... 		-> library/nginx@sha256:...
 
-	var repo, ref string
+	const defaultRegistry = "registry-1.docker.io"
+	var (
+		repo     string
+		ref      string
+		registry string
+	)
 	if strings.Contains(imageStr, "@") {
 		parts := strings.SplitN(imageStr, "@", 2)
-		repo, ref = parts[0], parts[1]
+		repo = parts[0]
+		ref = parts[1]
 	} else {
 		parts := strings.SplitN(imageStr, ":", 2)
 		repo = parts[0]
@@ -565,8 +720,21 @@ func (s *ContainerService) parseImageRef(imageStr string) (repository, reference
 	if repo == "" {
 		return "", "", errors.New("empty repository")
 	}
-	if !strings.Contains(repo, "/") {
-		repo = "library/" + repo
+
+	if strings.Contains(repo, "/") {
+		first := strings.SplitN(repo, "/", 2)[0]
+		if isRegistryHost(first) {
+			registry = normalizeRegistry(first)
+			repo = strings.SplitN(repo, "/", 2)[1]
+		}
+	}
+
+	if registry == "" || registry == defaultRegistry {
+		if !strings.Contains(repo, "/") {
+			repo = "library/" + repo
+		}
+	} else {
+		repo = registry + "/" + repo
 	}
 	return repo, ref, nil
 }
@@ -628,4 +796,20 @@ func (s *ContainerService) setupForwardRule(containerId string, ports []string) 
 	}
 
 	return nil
+}
+
+func isRegistryHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	return strings.Contains(host, ".") || strings.Contains(host, ":")
+}
+
+func normalizeRegistry(reg string) string {
+	switch reg {
+	case "docker.io", "index.docker.io":
+		return "registry-1.docker.io"
+	default:
+		return reg
+	}
 }

@@ -93,11 +93,12 @@ func NewApiRouter() *chi.Mux {
 	r.Delete("/v1/containers/{containerId}/actions/delete", containerHandler.DeleteContainer) // delete container
 
 	// == pods ==
-	r.Get("/v1/pods", podHandler.GetPodList)                    // list pods
-	r.Post("/v1/pods", podHandler.RunPod)                       // run pod sandbox
-	r.Get("/v1/pods/{podId}", podHandler.GetPodById)            // get pod sandbox detail
-	r.Post("/v1/pods/{podId}/actions/stop", podHandler.StopPod) // stop pod sandbox
-	r.Delete("/v1/pods/{podId}", podHandler.RemovePod)          // remove pod sandbox
+	r.Get("/v1/pods", podHandler.GetPodList)                      // list pods
+	r.Post("/v1/pods", podHandler.CreatePod)                      // create pod sandbox
+	r.Get("/v1/pods/{podId}", podHandler.GetPodById)              // get pod sandbox detail
+	r.Post("/v1/pods/{podId}/actions/start", podHandler.StartPod) // start pod sandbox
+	r.Post("/v1/pods/{podId}/actions/stop", podHandler.StopPod)   // stop pod sandbox
+	r.Delete("/v1/pods/{podId}", podHandler.RemovePod)            // remove pod sandbox
 
 	// == images ==
 	r.Get("/v1/images", imageHandler.GetImageList)      // get image list

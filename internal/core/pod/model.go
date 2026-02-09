@@ -2,7 +2,7 @@ package pod
 
 import "time"
 
-type ServiceRunModel struct {
+type ServiceCreateModel struct {
 	Name        string
 	Namespace   string
 	UID         string

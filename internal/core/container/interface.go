@@ -10,6 +10,7 @@ type ContainerServiceHandler interface {
 	GetContainerById(containerId string) (ContainerState, error)
 	GetContainerStats(containerId string) (ContainerStats, error)
 	ListContainerStats() ([]ContainerStats, error)
+	GetContainersByPodId(podId string) ([]ContainerState, error)
 	GetContainerLogPath(target string) (string, error)
 	GetLogWithTailLines(containerId string, n int) ([]byte, error)
 }

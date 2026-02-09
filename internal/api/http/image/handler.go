@@ -188,6 +188,7 @@ func (h *RequestHandler) GetImageStatus(w http.ResponseWriter, r *http.Request) 
 		RepoDigests: status.RepoDigests,
 		SizeBytes:   status.SizeBytes,
 		CreatedAt:   status.CreatedAt,
+		User:        status.User,
 	})
 }
 
