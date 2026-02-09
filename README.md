@@ -21,16 +21,27 @@ It translates high-level API requests into concrete container operations by gene
 Condenser currently supports:
 
 - Container lifecycle management
-    - Create, start, stop, delete, and inspect containers
-    - Coordination with Droplet for low-level container execution
+  - Create, start, stop, delete, inspect, exec, and logs
+  - Coordination with Droplet for low-level container execution
+  - Hook-based state updates from the runtime
 
 - Image management
-    - Pulling container images from Docker Hub
-    - Managing image layers and extracted root filesystems
+  - Pulling container images from Docker Hub
+  - Managing image layers and extracted root filesystems
+
+- Pod orchestration (Kubernetes-style semantics)
+  - Pod create/start/stop/remove and list/detail
+  - Multiple containers share Network/UTS/IPC namespaces
+  - Infra (pause) container keeps namespaces stable across restarts
+
+- Bottle orchestration (Compose-style semantics)
+  - Manage a group of containers as one unit
+  - Each container runs in its own namespaces
+  - Actions are coordinated via the Bottle API
 
 - REST API
-    - HTTP-based interface for controlling containers and images
-    - Designed to be consumed by Raind CLI or external tools
+  - HTTP-based interface for controlling containers, pods, bottles, and images
+  - Designed to be consumed by Raind CLI or external tools
 
 ## Build
 Requirements
@@ -38,6 +49,7 @@ Requirements
 - Linux kernel with namespace & cgroup support
 - Go (version 1.25 or later)
 - root privileges (or appropriate capabilities)
+- `swag` (Swagger generator) available in `PATH`
 
 ```bash
 git clone https://github.com/your-org/condenser.git
@@ -64,6 +76,13 @@ A typical container startup sequence in the Raind stack looks like this:
 - Condenser generates an OCI-compliant config.json and prepares the container bundle
 - Condenser invokes Droplet to create and start the container
 - Condenser tracks container state and exposes it via the API
+
+## Pod vs Bottle (Guidance)
+
+- Use **Pods** for tightly-coupled components that must share Network/UTS/IPC (sidecars, helpers, same IP/hostname).
+- Use **Bottles** for loosely-coupled services that should remain isolated but managed as a group.
+
+Kubernetes uses Pods as the smallest scheduling unit. Compose-like grouping is typically handled at a higher level (e.g., application templates or deployment tooling).
 
 ## Status
 Condenser and the Raind container runtime stack are currently under active development.  
