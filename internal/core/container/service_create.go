@@ -154,18 +154,12 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	}
 
 	// 11. setup forward rule
-	forwardTargetId := containerId
-	if createParameter.PodId != "" && !s.psmHandler.IsPodOwner(createParameter.PodId) && len(createParameter.Port) > 0 {
-		infra, err := s.findPodInfraContainer(createParameter.PodId)
-		if err != nil {
-			return "", fmt.Errorf("forward rule failed: infra container not found: %w", err)
+	// NOTE: Pod member containers should not create host port forwarding rules here.
+	if createParameter.PodId == "" || createParameter.IsPodInfra {
+		forwardTargetId := containerId
+		if err := s.setupForwardRule(forwardTargetId, createParameter.Port); err != nil {
+			return "", fmt.Errorf("forward rule failed: %w", err)
 		}
-		forwardTargetId = infra.ContainerId
-	}
-	if err := s.setupForwardRule(forwardTargetId, createParameter.Port); err != nil {
-		return "", fmt.Errorf("forward rule failed: %w", err)
-	}
-	if forwardTargetId == containerId {
 		rollbackFlag.ForwardRule = true
 	}
 

@@ -1,6 +1,9 @@
 package pod
 
-import "condenser/internal/core/container"
+import (
+	"condenser/internal/core/container"
+	"strings"
+)
 
 // == service: remove pod sandbox ==
 func (s *PodService) Remove(podId string) (string, error) {
@@ -21,12 +24,15 @@ func (s *PodService) Remove(podId string) (string, error) {
 			hasInfra = true
 			continue
 		}
+		if err := s.stopContainerIgnoreStopped(c.ContainerId); err != nil {
+			return "", err
+		}
 		if _, err := s.containerHandler.Delete(container.ServiceDeleteModel{ContainerId: c.ContainerId}); err != nil {
 			return "", err
 		}
 	}
 	if hasInfra {
-		if _, err := s.containerHandler.Stop(container.ServiceStopModel{ContainerId: infra.ContainerId}); err != nil {
+		if err := s.stopContainerIgnoreStopped(infra.ContainerId); err != nil {
 			return "", err
 		}
 		if _, err := s.containerHandler.Delete(container.ServiceDeleteModel{ContainerId: infra.ContainerId}); err != nil {
@@ -43,4 +49,15 @@ func (s *PodService) Remove(podId string) (string, error) {
 		}
 	}
 	return podId, nil
+}
+
+func (s *PodService) stopContainerIgnoreStopped(containerId string) error {
+	_, err := s.containerHandler.Stop(container.ServiceStopModel{ContainerId: containerId})
+	if err == nil {
+		return nil
+	}
+	if strings.Contains(err.Error(), "stop operation not allowed to current container status") {
+		return nil
+	}
+	return err
 }

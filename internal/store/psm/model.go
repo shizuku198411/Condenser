@@ -52,10 +52,11 @@ type PodTemplateInfo struct {
 }
 
 type ReplicaSetSpec struct {
-	Name       string `json:"name"`
-	Namespace  string `json:"namespace"`
-	Replicas   int    `json:"replicas"`
-	TemplateId string `json:"templateId"`
+	Name       string            `json:"name"`
+	Namespace  string            `json:"namespace"`
+	Replicas   int               `json:"replicas"`
+	TemplateId string            `json:"templateId"`
+	Selector   map[string]string `json:"selector,omitempty"`
 }
 
 type ReplicaSetInfo struct {

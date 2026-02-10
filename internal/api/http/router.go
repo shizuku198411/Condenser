@@ -17,6 +17,7 @@ import (
 	networkHandler "condenser/internal/api/http/network"
 	podHandler "condenser/internal/api/http/pod"
 	policyHandler "condenser/internal/api/http/policy"
+	serviceHandler "condenser/internal/api/http/service"
 	websocketHandler "condenser/internal/api/http/websocket"
 	"condenser/internal/utils"
 
@@ -56,6 +57,7 @@ func NewApiRouter() *chi.Mux {
 	policyHandler := policyHandler.NewRequestHandler()
 	logHandler := logHandler.NewRequestHandler()
 	podHandler := podHandler.NewRequestHandler()
+	serviceHandler := serviceHandler.NewRequestHandler()
 
 	// middleware
 	r.Use(middleware.RequestID)
@@ -91,10 +93,13 @@ func NewApiRouter() *chi.Mux {
 	r.Post("/v1/containers/{containerId}/actions/exec", containerHandler.ExecContainer)       // exec container
 	r.Delete("/v1/containers/{containerId}/actions/delete", containerHandler.DeleteContainer) // delete container
 
+	// == resource ==
+	r.Post("/v1/resource/apply", podHandler.ApplyPodYaml) // apply yaml
+	r.Post("/v1/resource/delete", podHandler.DeleteResourceYaml)
+
 	// == pods ==
 	r.Get("/v1/pods", podHandler.GetPodList)                      // list pods
 	r.Post("/v1/pods", podHandler.CreatePod)                      // create pod sandbox
-	r.Post("/v1/pods/apply", podHandler.ApplyPodYaml)             // apply pod yaml
 	r.Get("/v1/pods/{podId}", podHandler.GetPodById)              // get pod sandbox detail
 	r.Post("/v1/pods/{podId}/actions/start", podHandler.StartPod) // start pod sandbox
 	r.Post("/v1/pods/{podId}/actions/stop", podHandler.StopPod)   // stop pod sandbox
@@ -113,6 +118,12 @@ func NewApiRouter() *chi.Mux {
 	r.Delete("/v1/images", imageHandler.RemoveImage)    // remove image
 	r.Get("/v1/images/status", imageHandler.GetImageStatus)
 	r.Get("/v1/images/fs", imageHandler.GetImageFsInfo)
+
+	// == services ==
+	r.Get("/v1/services", serviceHandler.GetServiceList)               // list services
+	r.Post("/v1/services", serviceHandler.CreateService)               // create service
+	r.Get("/v1/services/{serviceId}", serviceHandler.GetServiceById)   // get service detail
+	r.Delete("/v1/services/{serviceId}", serviceHandler.RemoveService) // remove service
 
 	// == network ==
 	r.Get("/v1/networks", networkHandler.GetNetworkList)                          // list network

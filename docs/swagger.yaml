@@ -728,21 +728,6 @@ paths:
       summary: stop pod sandbox
       tags:
       - pods
-  /v1/pods/apply:
-    post:
-      consumes:
-      - text/plain
-      description: apply kubectl-compatible yaml manifest
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/utils.ApiResponse'
-      summary: apply pod/replicaset manifest
-      tags:
-      - pods
   /v1/policies:
     get:
       consumes:
@@ -927,4 +912,101 @@ paths:
       summary: scale replica set
       tags:
       - replicasets
+  /v1/resource/apply:
+    post:
+      consumes:
+      - text/plain
+      description: apply kubectl-compatible yaml manifest
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: apply pod/replicaset manifest
+      tags:
+      - pods
+  /v1/resource/delete:
+    post:
+      consumes:
+      - text/plain
+      description: delete resources defined in kubectl-compatible yaml manifest
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: delete resources by manifest
+      tags:
+      - resources
+  /v1/services:
+    get:
+      description: list services
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: list services
+      tags:
+      - services
+    post:
+      consumes:
+      - text/plain
+      description: create a L4 service
+      parameters:
+      - description: Service Manifest (yaml)
+        in: body
+        name: request
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: create service
+      tags:
+      - services
+  /v1/services/{serviceId}:
+    delete:
+      description: remove service
+      parameters:
+      - description: Service ID
+        in: path
+        name: serviceId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: remove service
+      tags:
+      - services
+    get:
+      description: get service detail
+      parameters:
+      - description: Service ID
+        in: path
+        name: serviceId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: get service detail
+      tags:
+      - services
 swagger: "2.0"

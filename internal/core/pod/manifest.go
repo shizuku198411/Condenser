@@ -18,6 +18,7 @@ type PodManifest struct {
 	Annotations map[string]string
 	Containers  []psm.ContainerTemplateSpec
 	Replicas    int
+	Selector    map[string]string
 }
 
 type manifestMeta struct {
@@ -48,6 +49,9 @@ type replicaSetManifest struct {
 	Kind       string       `yaml:"kind"`
 	Metadata   manifestMeta `yaml:"metadata"`
 	Spec       struct {
+		Selector struct {
+			MatchLabels map[string]string `yaml:"matchLabels"`
+		} `yaml:"selector"`
 		Replicas int        `yaml:"replicas"`
 		Template rsTemplate `yaml:"template"`
 	} `yaml:"spec"`
@@ -125,6 +129,11 @@ func DecodeK8sManifests(body []byte) ([]PodManifest, error) {
 			if manifest.Replicas == 0 {
 				manifest.Replicas = 1
 			}
+			if rs.Spec.Selector.MatchLabels != nil {
+				manifest.Selector = rs.Spec.Selector.MatchLabels
+			} else {
+				manifest.Selector = manifest.Labels
+			}
 			if manifest.Name == "" {
 				return nil, fmt.Errorf("replicaset template name is required")
 			}
@@ -179,4 +188,18 @@ func buildPodManifest(meta manifestMeta, containers []containerManifest) PodMani
 		Annotations: meta.Annotations,
 		Containers:  specs,
 	}
+}
+
+func mergeLabels(base, extra map[string]string) map[string]string {
+	if base == nil && extra == nil {
+		return nil
+	}
+	out := map[string]string{}
+	for k, v := range base {
+		out[k] = v
+	}
+	for k, v := range extra {
+		out[k] = v
+	}
+	return out
 }

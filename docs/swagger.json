@@ -729,29 +729,6 @@
                 }
             }
         },
-        "/v1/pods/apply": {
-            "post": {
-                "description": "apply kubectl-compatible yaml manifest",
-                "consumes": [
-                    "text/plain"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "pods"
-                ],
-                "summary": "apply pod/replicaset manifest",
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/utils.ApiResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/v1/pods/{podId}": {
             "get": {
                 "description": "get pod sandbox detail",
@@ -1123,6 +1100,154 @@
                         "schema": {
                             "$ref": "#/definitions/pod.ScaleReplicaSetRequest"
                         }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/resource/apply": {
+            "post": {
+                "description": "apply kubectl-compatible yaml manifest",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pods"
+                ],
+                "summary": "apply pod/replicaset manifest",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/resource/delete": {
+            "post": {
+                "description": "delete resources defined in kubectl-compatible yaml manifest",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "resources"
+                ],
+                "summary": "delete resources by manifest",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/services": {
+            "get": {
+                "description": "list services",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "services"
+                ],
+                "summary": "list services",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "create a L4 service",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "services"
+                ],
+                "summary": "create service",
+                "parameters": [
+                    {
+                        "description": "Service Manifest (yaml)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/services/{serviceId}": {
+            "get": {
+                "description": "get service detail",
+                "tags": [
+                    "services"
+                ],
+                "summary": "get service detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service ID",
+                        "name": "serviceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "remove service",
+                "tags": [
+                    "services"
+                ],
+                "summary": "remove service",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service ID",
+                        "name": "serviceId",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {

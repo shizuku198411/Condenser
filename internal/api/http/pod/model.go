@@ -31,7 +31,8 @@ type CreatePodResponse struct {
 }
 
 type ApplyPodResponse struct {
-	Pods []ApplyPodResult `json:"pods"`
+	Pods     []ApplyPodResult     `json:"pods"`
+	Services []ApplyServiceResult `json:"services"`
 }
 
 type ApplyPodResult struct {
@@ -40,6 +41,36 @@ type ApplyPodResult struct {
 	Name         string   `json:"name"`
 	Namespace    string   `json:"namespace"`
 	ContainerIds []string `json:"containerIds"`
+}
+
+type ApplyServiceResult struct {
+	ServiceId string `json:"serviceId"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
+type DeleteResourcesResponse struct {
+	Pods        []DeletePodResult        `json:"pods"`
+	ReplicaSets []DeleteReplicaSetResult `json:"replicasets"`
+	Services    []DeleteServiceResult    `json:"services"`
+}
+
+type DeletePodResult struct {
+	PodId     string `json:"podId"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
+type DeleteReplicaSetResult struct {
+	ReplicaSetId string `json:"replicaSetId"`
+	Name         string `json:"name"`
+	Namespace    string `json:"namespace"`
+}
+
+type DeleteServiceResult struct {
+	ServiceId string `json:"serviceId"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 type ScaleReplicaSetRequest struct {
@@ -52,12 +83,16 @@ type ScaleReplicaSetResponse struct {
 }
 
 type ReplicaSetSummary struct {
-	ReplicaSetId string `json:"replicaSetId"`
-	Name         string `json:"name"`
-	Namespace    string `json:"namespace"`
-	Replicas     int    `json:"replicas"`
-	TemplateId   string `json:"templateId"`
-	CreatedAt    string `json:"createdAt"`
+	ReplicaSetId string            `json:"replicaSetId"`
+	Name         string            `json:"name"`
+	Namespace    string            `json:"namespace"`
+	Replicas     int               `json:"replicas"`
+	Desired      int               `json:"desired"`
+	Current      int               `json:"current"`
+	Ready        int               `json:"ready"`
+	TemplateId   string            `json:"templateId"`
+	Selector     map[string]string `json:"selector,omitempty"`
+	CreatedAt    string            `json:"createdAt"`
 }
 
 type ReplicaSetDetail struct {
@@ -65,6 +100,10 @@ type ReplicaSetDetail struct {
 	Name         string              `json:"name"`
 	Namespace    string              `json:"namespace"`
 	Replicas     int                 `json:"replicas"`
+	Desired      int                 `json:"desired"`
+	Current      int                 `json:"current"`
+	Ready        int                 `json:"ready"`
+	Selector     map[string]string   `json:"selector,omitempty"`
 	Template     psm.PodTemplateSpec `json:"template"`
 	CreatedAt    string              `json:"createdAt"`
 }
