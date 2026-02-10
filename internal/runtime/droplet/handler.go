@@ -5,6 +5,7 @@ import (
 	"condenser/internal/utils"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -38,6 +39,9 @@ func (h *DropletHandler) Spec(specParameter runtime.SpecModel) error {
 	}
 	for _, v := range specParameter.Namespace {
 		args = slices.Concat(args, []string{"--ns", v})
+	}
+	for _, v := range specParameter.NSPath {
+		args = slices.Concat(args, []string{"--ns-path", v})
 	}
 	for _, v := range specParameter.Env {
 		args = slices.Concat(args, []string{"--env", v})
@@ -100,30 +104,60 @@ func (h *DropletHandler) Spec(specParameter runtime.SpecModel) error {
 	return nil
 }
 
-func (h *DropletHandler) Create(createParameter runtime.CreateModel) error {
-	var args []string
-	if createParameter.Tty {
-		args = []string{
-			"create",
-			"-t",
-			createParameter.ContainerId,
+func (h *DropletHandler) Create(createParameter runtime.CreateModel, podPid int) error {
+	if podPid <= 0 {
+		var args []string
+		if createParameter.Tty {
+			args = []string{
+				"create",
+				"-t",
+				createParameter.ContainerId,
+			}
+		} else {
+			args = []string{
+				"create",
+				createParameter.ContainerId,
+			}
 		}
+		runtimeCreate := h.commandFactory.Command(runtimePath, args...)
+		out, err := runtimeCreate.CombineOutput()
+		if err != nil {
+			msg := strings.TrimSpace(string(out))
+			if msg == "" {
+				return fmt.Errorf("droplet create failed: %w", err)
+			}
+			return fmt.Errorf("droplet create failed: %s: %w", msg, err)
+		}
+		return nil
 	} else {
-		args = []string{
-			"create",
-			createParameter.ContainerId,
+		var args []string
+		if createParameter.Tty {
+			args = []string{
+				"-t", strconv.Itoa(podPid), "-U", "--",
+				runtimePath,
+				"create",
+				"-t",
+				createParameter.ContainerId,
+			}
+		} else {
+			args = []string{
+				"-t", strconv.Itoa(podPid), "-U", "--",
+				runtimePath,
+				"create",
+				createParameter.ContainerId,
+			}
 		}
-	}
-	runtimeCreate := h.commandFactory.Command(runtimePath, args...)
-	out, err := runtimeCreate.CombineOutput()
-	if err != nil {
-		msg := strings.TrimSpace(string(out))
-		if msg == "" {
-			return fmt.Errorf("droplet create failed: %w", err)
+		runtimeCreate := h.commandFactory.Command("nsenter", args...)
+		out, err := runtimeCreate.CombineOutput()
+		if err != nil {
+			msg := strings.TrimSpace(string(out))
+			if msg == "" {
+				return fmt.Errorf("droplet create failed: %w", err)
+			}
+			return fmt.Errorf("droplet create failed: %s: %w", msg, err)
 		}
-		return fmt.Errorf("droplet create failed: %s: %w", msg, err)
+		return nil
 	}
-	return nil
 }
 
 func (h *DropletHandler) Start(startParameter runtime.StartModel) error {

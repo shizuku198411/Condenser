@@ -3,6 +3,8 @@ package main
 import (
 	httpapi "condenser/internal/api/http"
 	"condenser/internal/core/cert"
+	"condenser/internal/core/pod"
+	"condenser/internal/core/service"
 	"condenser/internal/dns"
 	enrichedlog "condenser/internal/enriched_log"
 	"condenser/internal/env"
@@ -98,6 +100,18 @@ func main() {
 		log.Printf("[*] enrichement logger start")
 		enLogger := enrichedlog.NewEnrichedLogHandler()
 		enLogger.EnrichedLogger()
+	}()
+
+	// pod controller
+	go func() {
+		log.Printf("[*] pod controller start")
+		pod.NewPodController().Start()
+	}()
+
+	// service controller
+	go func() {
+		log.Printf("[*] service controller start")
+		service.NewServiceController().Start()
 	}()
 
 	// forwarder

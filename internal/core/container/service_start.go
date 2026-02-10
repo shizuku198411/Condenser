@@ -39,8 +39,14 @@ func (s *ContainerService) Start(startParameter ServiceStartModel) (string, erro
 			return "", err
 		}
 		// create container
-		if err := s.createContainer(containerId, containerInfo.Tty); err != nil {
-			return "", fmt.Errorf("start container failed: %w", err)
+		if containerInfo.PodId != "" {
+			if err := s.joinContainer(containerId, containerInfo.Tty, containerInfo.PodId); err != nil {
+				return "", fmt.Errorf("start container failed: %w", err)
+			}
+		} else {
+			if err := s.createContainer(containerId, containerInfo.Tty); err != nil {
+				return "", fmt.Errorf("start container failed: %w", err)
+			}
 		}
 		// start container
 		if err := s.startContainer(containerId, containerInfo.Tty); err != nil {

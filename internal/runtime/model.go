@@ -5,6 +5,7 @@ type SpecModel struct {
 	Cwd       string
 	Command   string
 	Namespace []string
+	NSPath    []string
 	Hostname  string
 	Env       []string
 	Mount     []string

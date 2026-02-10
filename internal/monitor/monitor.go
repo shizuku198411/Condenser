@@ -2,10 +2,12 @@ package monitor
 
 import (
 	"condenser/internal/store/csm"
+	"condenser/internal/store/psm"
 	"condenser/internal/utils"
 	"context"
 	"log"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -16,11 +18,13 @@ import (
 func NewContainerMonitor() *ContainerMonitor {
 	return &ContainerMonitor{
 		csmHandler: csm.NewCsmManager(csm.NewCsmStore(utils.CsmStorePath)),
+		psmHandler: psm.NewPsmManager(psm.NewPsmStore(utils.PsmStorePath)),
 	}
 }
 
 type ContainerMonitor struct {
 	csmHandler csm.CsmHandler
+	psmHandler psm.PsmHandler
 }
 
 func (m *ContainerMonitor) Start() error {
@@ -62,6 +66,17 @@ func (m *ContainerMonitor) Start() error {
 					container.ContainerId,
 					"stopped",
 					0,
+				); err != nil {
+					continue
+				}
+				if container.PodId != "" && !strings.HasPrefix(container.ContainerName, utils.PodInfraContainerNamePrefix) {
+					_ = m.psmHandler.UpdatePod(container.PodId, "degraded")
+				}
+				if err := m.csmHandler.UpdateExitStatus(
+					container.ContainerId,
+					-1,
+					"Error",
+					"process down detected.",
 				); err != nil {
 					continue
 				}
@@ -191,6 +206,7 @@ func NewResolver(csmHandler csm.CsmHandler) *Resolver {
 			resolver.ResolveMap[c.ContainerId] = ContainerMeta{
 				ContainerId:   c.ContainerId,
 				ContainerName: c.ContainerName,
+				PodId:         c.PodId,
 				SpiffeId:      c.SpiffeId,
 				Status:        c.State,
 				Pid:           c.Pid,
@@ -213,6 +229,7 @@ func (r *Resolver) Refresh() {
 			r.ResolveMap[c.ContainerId] = ContainerMeta{
 				ContainerId:   c.ContainerId,
 				ContainerName: c.ContainerName,
+				PodId:         c.PodId,
 				SpiffeId:      c.SpiffeId,
 				Status:        c.State,
 				Pid:           c.Pid,

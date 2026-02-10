@@ -38,7 +38,8 @@ func (s *RegistryDockerHub) PullImage(pullParameter registry.RegistryPullModel) 
 	}
 
 	// 2. create output directory
-	repoOut := filepath.Join(utils.LayerRootDir, strings.Split(imageRef.repository, "/")[1], imageRef.reference)
+	storeRepo := s.storeRepository(imageRef)
+	repoOut := filepath.Join(utils.LayerRootDir, storeRepo, imageRef.reference)
 	if err := s.createOutputDirectory(repoOut); err != nil {
 		return "", "", "", "", "", err
 	}
@@ -56,13 +57,16 @@ func (s *RegistryDockerHub) PullImage(pullParameter registry.RegistryPullModel) 
 	}
 
 	// 4. get token
-	scope := fmt.Sprintf("repository:%s:pull", imageRef.repository)
-	token, err := s.fetchToken(ctx, httpClient, realm, service, scope)
-	if err != nil {
-		if err := s.removeOutputDirectory(repoOut); err != nil {
+	token := ""
+	if realm != "" && service != "" {
+		scope := fmt.Sprintf("repository:%s:pull", imageRef.repository)
+		token, err = s.fetchToken(ctx, httpClient, realm, service, scope)
+		if err != nil {
+			if err := s.removeOutputDirectory(repoOut); err != nil {
+				return "", "", "", "", "", err
+			}
 			return "", "", "", "", "", err
 		}
-		return "", "", "", "", "", err
 	}
 
 	// 5. get manifest (manifest list) and store .json
@@ -166,7 +170,7 @@ func (s *RegistryDockerHub) PullImage(pullParameter registry.RegistryPullModel) 
 		return "", "", "", "", "", err
 	}
 
-	return imageRef.repository, imageRef.reference, repoOut, configPath, rootfsPath, nil
+	return s.storeRepository(imageRef), imageRef.reference, repoOut, configPath, rootfsPath, nil
 }
 
 func (s *RegistryDockerHub) createOutputDirectory(repoOut string) error {
@@ -193,35 +197,44 @@ func (s *RegistryDockerHub) removeOutputDirectory(repoOut string) error {
 }
 
 func (s *RegistryDockerHub) parseImageRef(imageStr string) (imageRefParts, error) {
-	// currently docker.io is only supported.
-	reg := defaultRegistry
-
 	// image string pattern
 	// - ubuntu 				-> library/ubuntu:latest
 	// - ubuntu:24.04 			-> library/ubuntu:24.04
 	// - library/ubuntu:24.04 	-> library/ubuntu:24.04
 	// - nginx@sha256:... 		-> library/nginx@sha256:...
+	// - registry.k8s.io/kube-apiserver:v1.32.11
+	// - localhost:5000/app:latest
 
-	var repo, ref string
+	var name, repo, ref string
 	if strings.Contains(imageStr, "@") {
 		parts := strings.SplitN(imageStr, "@", 2)
-		repo, ref = parts[0], parts[1]
+		name, ref = parts[0], parts[1]
 	} else {
-		parts := strings.SplitN(imageStr, ":", 2)
-		repo = parts[0]
-		if len(parts) == 2 && parts[1] != "" {
-			ref = parts[1]
+		name = imageStr
+		lastColon := strings.LastIndex(name, ":")
+		lastSlash := strings.LastIndex(name, "/")
+		if lastColon > lastSlash {
+			ref = name[lastColon+1:]
+			name = name[:lastColon]
 		} else {
 			ref = "latest"
 		}
 	}
 
-	if repo == "" {
+	if name == "" {
 		return imageRefParts{}, errors.New("empty repository")
 	}
-	if !strings.Contains(repo, "/") {
-		repo = "library/" + repo
+
+	reg := defaultRegistry
+	repo = name
+	parts := strings.Split(name, "/")
+	if len(parts) > 1 && s.isRegistryHost(parts[0]) {
+		reg = s.normalizeRegistry(parts[0])
+		repo = strings.Join(parts[1:], "/")
+	} else if len(parts) == 1 {
+		repo = "library/" + name
 	}
+
 	return imageRefParts{
 		registry:   reg,
 		repository: repo,
@@ -240,6 +253,9 @@ func (s *RegistryDockerHub) getBearerChallenge(ctx context.Context, client *http
 	defer resp.Body.Close()
 
 	// validate status
+	if resp.StatusCode == http.StatusOK {
+		return "", "", nil
+	}
 	if resp.StatusCode != http.StatusUnauthorized {
 		return "", "", fmt.Errorf("expected 401 from /v2/, got %d", resp.StatusCode)
 	}
@@ -350,7 +366,9 @@ func (s *RegistryDockerHub) fetchManifest(ctx context.Context, client *http.Clie
 		"application/vnd.oci.image.manifest.v1+json",
 		"application/vnd.docker.distribution.manifest.v2+json",
 	}, ", "))
-	req.Header.Set("Authorization", "Bearer "+token)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -421,7 +439,9 @@ func (s *RegistryDockerHub) downloadBlobVerified(ctx context.Context, client *ht
 	}
 	u := fmt.Sprintf("https://%s/v2/%s/blobs/%s", ref.registry, ref.repository, digest)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -679,4 +699,27 @@ func (s *RegistryDockerHub) removeAllChildren(dir string) error {
 		}
 	}
 	return nil
+}
+
+func (s *RegistryDockerHub) isRegistryHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	return strings.Contains(host, ".") || strings.Contains(host, ":")
+}
+
+func (s *RegistryDockerHub) normalizeRegistry(reg string) string {
+	switch reg {
+	case "docker.io", "index.docker.io":
+		return defaultRegistry
+	default:
+		return reg
+	}
+}
+
+func (s *RegistryDockerHub) storeRepository(ref imageRefParts) string {
+	if ref.registry == defaultRegistry {
+		return ref.repository
+	}
+	return ref.registry + "/" + ref.repository
 }
