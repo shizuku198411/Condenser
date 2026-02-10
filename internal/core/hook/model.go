@@ -11,6 +11,9 @@ type ServiceStateModel struct {
 	Id          string                     `json:"id"`
 	Status      string                     `json:"status"`
 	Pid         int                        `json:"pid"`
+	ExitCode    int                        `json:"exit_code"`
+	Reason      string                     `json:"reason"`
+	Message     string                     `json:"message"`
 	Rootfs      string                     `json:"rootfs"`
 	Bundler     string                     `json:"bundle"`
 	Annotations ServiceStateAnnotaionModel `json:"annotations,omitempty"`

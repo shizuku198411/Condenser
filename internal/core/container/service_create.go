@@ -4,23 +4,37 @@ import (
 	"condenser/internal/core/image"
 	"condenser/internal/core/network"
 	"condenser/internal/runtime"
+	"condenser/internal/store/psm"
 	"condenser/internal/utils"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"al.essio.dev/pkg/shellescape"
 )
 
 // == service: create ==
 func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string, err error) {
+	if createParameter.PodId != "" && !createParameter.IsPodInfra {
+		if err := s.ensurePodInfra(createParameter.PodId, createParameter.Network); err != nil {
+			return "", err
+		}
+	}
+
 	// 1. generate container id and name
 	containerId := utils.NewUlid()[:12]
 	//    if name is not set, generate a random name
-	containerName := createParameter.Name
+	baseName := createParameter.Name
+	containerName := baseName
+	if containerName != "" && createParameter.PodId != "" && !createParameter.IsPodInfra {
+		containerName = s.buildPodContainerName(containerName, createParameter.PodId)
+	}
 	if containerName == "" {
 		containerName, err = s.generateContainerName()
 		if err != nil {
@@ -67,15 +81,21 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	}
 
 	// 5. allocate address
+	var (
+		containerGateway string
+		containerAddr    string
+	)
 	bridgeInterface := createParameter.Network
 	if bridgeInterface == "" {
 		bridgeInterface = "raind0"
 	}
-	containerGateway, containerAddr, err := s.allocateAddress(containerId, bridgeInterface)
-	if err != nil {
-		return "", err
+	if createParameter.PodId == "" || s.psmHandler.IsPodOwner(createParameter.PodId) {
+		containerGateway, containerAddr, err = s.allocateAddress(containerId, bridgeInterface)
+		if err != nil {
+			return "", err
+		}
+		rollbackFlag.AllocateAddr = true
 	}
-	rollbackFlag.AllocateAddr = true
 
 	// 6. create CSM entry with state=creating, pid=0, creatingAt=nil
 	//    command=if user specified, use it. if not, use image config's command
@@ -84,6 +104,12 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 		command = createParameter.Command
 	} else {
 		command = slices.Concat(imageConfig.Config.Entrypoint, imageConfig.Config.Cmd)
+	}
+	logPath := ""
+	if createParameter.Tty {
+		logPath = filepath.Join(utils.ContainerRootDir, containerId, "logs", "console.log")
+	} else {
+		logPath = filepath.Join(utils.ContainerRootDir, containerId, "logs", "init.log")
 	}
 	if err := s.csmHandler.StoreContainer(
 		containerId,
@@ -95,6 +121,8 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 		command,
 		containerName,
 		createParameter.BottleId,
+		logPath,
+		createParameter.PodId,
 	); err != nil {
 		return "", err
 	}
@@ -120,20 +148,49 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	// 10. create spec (config.json)
 	if err := s.createContainerSpec(
 		containerId, createParameter, imageRepo, imageRef, imageConfig,
-		bridgeInterface, containerAddr, containerGateway,
+		bridgeInterface, containerAddr, containerGateway, createParameter.PodId,
 	); err != nil {
 		return "", fmt.Errorf("create spec failed: %w", err)
 	}
 
 	// 11. setup forward rule
-	if err := s.setupForwardRule(containerId, createParameter.Port); err != nil {
-		return "", fmt.Errorf("forward rule failed: %w", err)
+	// NOTE: Pod member containers should not create host port forwarding rules here.
+	if createParameter.PodId == "" || createParameter.IsPodInfra {
+		forwardTargetId := containerId
+		if err := s.setupForwardRule(forwardTargetId, createParameter.Port); err != nil {
+			return "", fmt.Errorf("forward rule failed: %w", err)
+		}
+		rollbackFlag.ForwardRule = true
 	}
-	rollbackFlag.ForwardRule = true
 
 	// 12. create container
-	if err := s.createContainer(containerId, createParameter.Tty); err != nil {
-		return "", fmt.Errorf("create container failed: %w", err)
+	if createParameter.PodId == "" || s.psmHandler.IsPodOwner(createParameter.PodId) {
+		if err := s.createContainer(containerId, createParameter.Tty); err != nil {
+			return "", fmt.Errorf("create container failed: %w", err)
+		}
+	} else {
+		if err := s.joinContainer(containerId, createParameter.Tty, createParameter.PodId); err != nil {
+			return "", fmt.Errorf("create container failed: %w", err)
+		}
+	}
+
+	if createParameter.PodId != "" && !createParameter.IsPodInfra {
+		templateName := baseName
+		if templateName == "" {
+			templateName = containerName
+		}
+		if err := s.psmHandler.AddContainerToPodTemplate(createParameter.PodId, psm.ContainerTemplateSpec{
+			Name:    templateName,
+			Image:   createParameter.Image,
+			Command: createParameter.Command,
+			Port:    createParameter.Port,
+			Mount:   createParameter.Mount,
+			Env:     createParameter.Env,
+			Network: createParameter.Network,
+			Tty:     createParameter.Tty,
+		}); err != nil {
+			return "", err
+		}
 	}
 
 	return containerId, nil
@@ -155,7 +212,9 @@ func (s *ContainerService) rollback(rollbackFlag RollbackFlag, containerId strin
 	}
 	if rollbackFlag.CSMEntry {
 		if err := s.csmHandler.RemoveContainer(containerId); err != nil {
-			return err
+			if !isNotFoundErr(err) {
+				return err
+			}
 		}
 	}
 	if rollbackFlag.DirectoryEnv {
@@ -165,7 +224,9 @@ func (s *ContainerService) rollback(rollbackFlag RollbackFlag, containerId strin
 	}
 	if rollbackFlag.CgroupEntry {
 		if err := s.deleteCgroupSubtree(containerId); err != nil {
-			return err
+			if !isNotFoundErr(err) && !isBusyErr(err) {
+				return err
+			}
 		}
 	}
 	if rollbackFlag.ForwardRule {
@@ -174,6 +235,22 @@ func (s *ContainerService) rollback(rollbackFlag RollbackFlag, containerId strin
 		}
 	}
 	return nil
+}
+
+func isNotFoundErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "not found")
+}
+
+func isBusyErr(err error) bool {
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		return errors.Is(pathErr.Err, syscall.EBUSY)
+	}
+	return errors.Is(err, syscall.EBUSY)
 }
 
 func (s *ContainerService) generateContainerName() (string, error) {
@@ -255,6 +332,9 @@ func (s *ContainerService) setupEtcFiles(containerId string, containerAddr strin
 	}
 
 	// /etc/resolv.conf
+	if containerGateway == "" {
+		containerGateway = "8.8.8.8"
+	}
 	resolvPath := filepath.Join(etcDir, "resolv.conf")
 	resolvData := "nameserver " + containerGateway + "\n"
 	if err := s.filesystemHandler.WriteFile(resolvPath, []byte(resolvData), 0o644); err != nil {
@@ -301,7 +381,7 @@ func (s *ContainerService) allocateAddress(containerId string, bridgeInterface s
 func (s *ContainerService) createContainerSpec(
 	containerId string, createParameter ServiceCreateModel,
 	imageRepo, imageRef string, imageConfig image.ImageConfigFile,
-	bridge, containerAddr, containerGateway string,
+	bridge, containerAddr, containerGateway string, podId string,
 ) error {
 
 	// spec parametr
@@ -323,10 +403,41 @@ func (s *ContainerService) createContainerSpec(
 	}
 
 	// namespace
-	namespace := []string{"mount", "network", "uts", "pid", "ipc", "user", "cgroup"}
+	var namespace []string
+	var nspath []string
+	if podId != "" {
+		// retrieve pod path
+		podInfo, err := s.psmHandler.GetPodById(podId)
+		if err != nil {
+			return err
+		}
+		nsReady := podInfo.UserNS != "" && podInfo.NetworkNS != "" && podInfo.IPCNS != "" && podInfo.UTSNS != ""
+		if nsReady {
+			if !s.nsPathExists(podInfo.NetworkNS) || !s.nsPathExists(podInfo.IPCNS) || !s.nsPathExists(podInfo.UTSNS) || !s.nsPathExists(podInfo.UserNS) {
+				_ = s.psmHandler.ResetPodNamespaces(podId)
+				nsReady = false
+			}
+		}
+		if nsReady {
+			networkPath := "network=" + podInfo.NetworkNS
+			ipcPath := "ipc=" + podInfo.IPCNS
+			utsPath := "uts=" + podInfo.UTSNS
+			nspath = []string{networkPath, ipcPath, utsPath}
+			namespace = []string{"mount", "pid", "cgroup"}
+		} else {
+			namespace = []string{"mount", "network", "uts", "pid", "ipc", "user", "cgroup"}
+		}
+	} else {
+		namespace = []string{"mount", "network", "uts", "pid", "ipc", "user", "cgroup"}
+	}
 
 	// hostname
-	hostname := containerId
+	var hostname string
+	if podId == "" {
+		hostname = containerId
+	} else {
+		hostname = podId[:12]
+	}
 
 	// env
 	// image predefined env
@@ -443,6 +554,7 @@ func (s *ContainerService) createContainerSpec(
 		Cwd:                    cwd,
 		Command:                cmd,
 		Namespace:              namespace,
+		NSPath:                 nspath,
 		Hostname:               hostname,
 		Env:                    envs,
 		Mount:                  mount,
@@ -478,10 +590,131 @@ func (s *ContainerService) createContainerSpec(
 
 func (s *ContainerService) createContainer(containerId string, tty bool) error {
 	// runtime: create
-	if err := s.runtimeHandler.Create(runtime.CreateModel{ContainerId: containerId, Tty: tty}); err != nil {
+	if err := s.runtimeHandler.Create(runtime.CreateModel{ContainerId: containerId, Tty: tty}, 0); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (s *ContainerService) joinContainer(containerId string, tty bool, podId string) error {
+	podOwner, err := s.psmHandler.GetPodOwnerPid(podId)
+	if err != nil {
+		return err
+	}
+	if podOwner <= 0 || !s.nsPathExists(fmt.Sprintf("/proc/%d/ns/user", podOwner)) {
+		_ = s.psmHandler.ResetPodNamespaces(podId)
+		return s.createContainer(containerId, tty)
+	}
+	// runtime: create
+	if err := s.runtimeHandler.Create(runtime.CreateModel{ContainerId: containerId, Tty: tty}, podOwner); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ContainerService) nsPathExists(path string) bool {
+	if path == "" {
+		return false
+	}
+	if _, err := os.Stat(path); err != nil {
+		return false
+	}
+	return true
+}
+
+func (s *ContainerService) ensurePodInfra(podId string, network string) error {
+	podInfo, err := s.psmHandler.GetPodById(podId)
+	if err != nil {
+		return err
+	}
+
+	if s.podNamespacesReady(podInfo) {
+		return nil
+	}
+
+	if s.podNamespacesPopulated(podInfo) {
+		_ = s.psmHandler.ResetPodNamespaces(podId)
+	}
+
+	infra, err := s.findPodInfraContainer(podId)
+	if err == nil {
+		if infra.State == "running" {
+			_, _ = s.Stop(ServiceStopModel{ContainerId: infra.ContainerId})
+		}
+		_, _ = s.Delete(ServiceDeleteModel{ContainerId: infra.ContainerId})
+	}
+
+	infraName := s.podInfraName(podId)
+	infraId, err := s.Create(ServiceCreateModel{
+		Image:      utils.PodInfraImage,
+		Network:    network,
+		Tty:        false,
+		Name:       infraName,
+		PodId:      podId,
+		IsPodInfra: true,
+	})
+	if err != nil {
+		return err
+	}
+	if _, err := s.Start(ServiceStartModel{ContainerId: infraId, Tty: false}); err != nil {
+		_, _ = s.Delete(ServiceDeleteModel{ContainerId: infraId})
+		return err
+	}
+
+	return s.waitForPodNamespaces(podId)
+}
+
+func (s *ContainerService) findPodInfraContainer(podId string) (ContainerState, error) {
+	containers, err := s.GetContainersByPodId(podId)
+	if err != nil {
+		return ContainerState{}, err
+	}
+	for _, c := range containers {
+		if s.isPodInfraName(c.Name, podId) {
+			return c, nil
+		}
+	}
+	return ContainerState{}, fmt.Errorf("pod infra not found")
+}
+
+func (s *ContainerService) isPodInfraName(name, podId string) bool {
+	if strings.HasPrefix(name, utils.PodInfraContainerNamePrefix) {
+		return true
+	}
+	return name == s.podInfraName(podId)
+}
+
+func (s *ContainerService) podInfraName(podId string) string {
+	short := podId
+	if len(short) > 12 {
+		short = podId[:12]
+	}
+	return utils.PodInfraContainerNamePrefix + short
+}
+
+func (s *ContainerService) podNamespacesPopulated(podInfo psm.PodInfo) bool {
+	return podInfo.UserNS != "" || podInfo.NetworkNS != "" || podInfo.IPCNS != "" || podInfo.UTSNS != ""
+}
+
+func (s *ContainerService) podNamespacesReady(podInfo psm.PodInfo) bool {
+	if podInfo.UserNS == "" || podInfo.NetworkNS == "" || podInfo.IPCNS == "" || podInfo.UTSNS == "" {
+		return false
+	}
+	return s.nsPathExists(podInfo.NetworkNS) && s.nsPathExists(podInfo.IPCNS) && s.nsPathExists(podInfo.UTSNS) && s.nsPathExists(podInfo.UserNS)
+}
+
+func (s *ContainerService) waitForPodNamespaces(podId string) error {
+	for i := 0; i < 50; i++ {
+		podInfo, err := s.psmHandler.GetPodById(podId)
+		if err != nil {
+			return err
+		}
+		if s.podNamespacesReady(podInfo) {
+			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return fmt.Errorf("pod namespaces not ready: %s", podId)
 }
 
 func (s *ContainerService) parseImageRef(imageStr string) (repository, reference string, err error) {
@@ -491,10 +724,16 @@ func (s *ContainerService) parseImageRef(imageStr string) (repository, reference
 	// - library/ubuntu:24.04 	-> library/ubuntu:24.04
 	// - nginx@sha256:... 		-> library/nginx@sha256:...
 
-	var repo, ref string
+	const defaultRegistry = "registry-1.docker.io"
+	var (
+		repo     string
+		ref      string
+		registry string
+	)
 	if strings.Contains(imageStr, "@") {
 		parts := strings.SplitN(imageStr, "@", 2)
-		repo, ref = parts[0], parts[1]
+		repo = parts[0]
+		ref = parts[1]
 	} else {
 		parts := strings.SplitN(imageStr, ":", 2)
 		repo = parts[0]
@@ -508,8 +747,21 @@ func (s *ContainerService) parseImageRef(imageStr string) (repository, reference
 	if repo == "" {
 		return "", "", errors.New("empty repository")
 	}
-	if !strings.Contains(repo, "/") {
-		repo = "library/" + repo
+
+	if strings.Contains(repo, "/") {
+		first := strings.SplitN(repo, "/", 2)[0]
+		if isRegistryHost(first) {
+			registry = normalizeRegistry(first)
+			repo = strings.SplitN(repo, "/", 2)[1]
+		}
+	}
+
+	if registry == "" || registry == defaultRegistry {
+		if !strings.Contains(repo, "/") {
+			repo = "library/" + repo
+		}
+	} else {
+		repo = registry + "/" + repo
 	}
 	return repo, ref, nil
 }
@@ -524,6 +776,17 @@ func (s *ContainerService) buildCommand(entrypoint, cmd []string) string {
 		quoted = append(quoted, shellescape.Quote(a))
 	}
 	return strings.Join(quoted, " ")
+}
+
+func (s *ContainerService) buildPodContainerName(baseName, podId string) string {
+	if podId == "" {
+		return baseName
+	}
+	suffix := podId
+	if len(suffix) > 8 {
+		suffix = suffix[len(suffix)-8:]
+	}
+	return baseName + "-" + suffix
 }
 
 func (s *ContainerService) setupForwardRule(containerId string, ports []string) error {
@@ -571,4 +834,20 @@ func (s *ContainerService) setupForwardRule(containerId string, ports []string) 
 	}
 
 	return nil
+}
+
+func isRegistryHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	return strings.Contains(host, ".") || strings.Contains(host, ":")
+}
+
+func normalizeRegistry(reg string) string {
+	switch reg {
+	case "docker.io", "index.docker.io":
+		return "registry-1.docker.io"
+	default:
+		return reg
+	}
 }

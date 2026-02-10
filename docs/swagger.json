@@ -159,6 +159,23 @@
                 }
             }
         },
+        "/v1/containers/stats": {
+            "get": {
+                "description": "list container stats",
+                "tags": [
+                    "containers"
+                ],
+                "summary": "list container stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/containers/{containerId}": {
             "get": {
                 "description": "get an exitsting container info",
@@ -333,6 +350,58 @@
                 }
             }
         },
+        "/v1/containers/{containerId}/logpath": {
+            "get": {
+                "description": "get container log path",
+                "tags": [
+                    "containers"
+                ],
+                "summary": "get container log path",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Container ID",
+                        "name": "containerId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/containers/{containerId}/stats": {
+            "get": {
+                "description": "get container stats",
+                "tags": [
+                    "containers"
+                ],
+                "summary": "get container stats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Container ID",
+                        "name": "containerId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/hooks/droplet": {
             "post": {
                 "description": "apply hook from droplet",
@@ -475,6 +544,64 @@
                 }
             }
         },
+        "/v1/images/fs": {
+            "get": {
+                "description": "get image filesystem usage",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "image"
+                ],
+                "summary": "get image fs info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Target Image",
+                        "name": "image",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/images/status": {
+            "get": {
+                "description": "get image status details",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "image"
+                ],
+                "summary": "get image status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Target Image",
+                        "name": "image",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/networks": {
             "get": {
                 "description": "get bridge list",
@@ -546,6 +673,157 @@
                 "responses": {
                     "201": {
                         "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/pods": {
+            "get": {
+                "description": "list pod sandbox",
+                "tags": [
+                    "pods"
+                ],
+                "summary": "list pods",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "create a pod sandbox (no container start)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pods"
+                ],
+                "summary": "create pod sandbox",
+                "parameters": [
+                    {
+                        "description": "Pod Spec",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pod.CreatePodRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/pods/{podId}": {
+            "get": {
+                "description": "get pod sandbox detail",
+                "tags": [
+                    "pods"
+                ],
+                "summary": "get pod detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pod ID",
+                        "name": "podId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "remove a pod sandbox",
+                "tags": [
+                    "pods"
+                ],
+                "summary": "remove pod sandbox",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pod ID",
+                        "name": "podId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/pods/{podId}/actions/start": {
+            "post": {
+                "description": "start a pod sandbox",
+                "tags": [
+                    "pods"
+                ],
+                "summary": "start pod sandbox",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pod ID",
+                        "name": "podId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/pods/{podId}/actions/stop": {
+            "post": {
+                "description": "stop a pod sandbox",
+                "tags": [
+                    "pods"
+                ],
+                "summary": "stop pod sandbox",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Pod ID",
+                        "name": "podId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/utils.ApiResponse"
                         }
@@ -722,6 +1000,265 @@
                     }
                 }
             }
+        },
+        "/v1/replicasets": {
+            "get": {
+                "description": "list replica sets",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "replicasets"
+                ],
+                "summary": "list replica sets",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/replicasets/{replicaSetId}": {
+            "get": {
+                "description": "get replica set detail",
+                "tags": [
+                    "replicasets"
+                ],
+                "summary": "get replica set detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ReplicaSet ID",
+                        "name": "replicaSetId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "remove replica set",
+                "tags": [
+                    "replicasets"
+                ],
+                "summary": "remove replica set",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ReplicaSet ID",
+                        "name": "replicaSetId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/replicasets/{replicaSetId}/actions/scale": {
+            "post": {
+                "description": "scale replica set replicas",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "replicasets"
+                ],
+                "summary": "scale replica set",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ReplicaSet ID",
+                        "name": "replicaSetId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Scale Options",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pod.ScaleReplicaSetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/resource/apply": {
+            "post": {
+                "description": "apply kubectl-compatible yaml manifest",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pods"
+                ],
+                "summary": "apply pod/replicaset manifest",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/resource/delete": {
+            "post": {
+                "description": "delete resources defined in kubectl-compatible yaml manifest",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "resources"
+                ],
+                "summary": "delete resources by manifest",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/services": {
+            "get": {
+                "description": "list services",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "services"
+                ],
+                "summary": "list services",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "create a L4 service",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "services"
+                ],
+                "summary": "create service",
+                "parameters": [
+                    {
+                        "description": "Service Manifest (yaml)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/services/{serviceId}": {
+            "get": {
+                "description": "get service detail",
+                "tags": [
+                    "services"
+                ],
+                "summary": "get service detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service ID",
+                        "name": "serviceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "remove service",
+                "tags": [
+                    "services"
+                ],
+                "summary": "remove service",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service ID",
+                        "name": "serviceId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -766,6 +1303,10 @@
                 "network": {
                     "type": "string",
                     "example": "raind0"
+                },
+                "podId": {
+                    "type": "string",
+                    "example": "pod-1234"
                 },
                 "port": {
                     "type": "array",
@@ -843,6 +1384,99 @@
             "properties": {
                 "bridge": {
                     "type": "string"
+                }
+            }
+        },
+        "pod.CreatePodContainerRequest": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "env": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "image": {
+                    "type": "string"
+                },
+                "mount": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "network": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tty": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "pod.CreatePodRequest": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "containers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pod.CreatePodContainerRequest"
+                    }
+                },
+                "ipcNS": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "namespace": {
+                    "type": "string"
+                },
+                "networkNS": {
+                    "type": "string"
+                },
+                "uid": {
+                    "type": "string"
+                },
+                "userNS": {
+                    "type": "string"
+                },
+                "utsNS": {
+                    "type": "string"
+                }
+            }
+        },
+        "pod.ScaleReplicaSetRequest": {
+            "type": "object",
+            "properties": {
+                "replicas": {
+                    "type": "integer"
                 }
             }
         },

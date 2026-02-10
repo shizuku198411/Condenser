@@ -64,6 +64,7 @@ func (h *RequestHandler) CreateContainer(w http.ResponseWriter, r *http.Request)
 			Network: req.Network,
 			Tty:     req.Tty,
 			Name:    req.Name,
+			PodId:   req.PodId,
 		},
 	)
 	if err != nil {
@@ -318,4 +319,67 @@ func (h *RequestHandler) GetContainerLog(w http.ResponseWriter, r *http.Request)
 		_, _ = w.Write(data)
 		return
 	}
+}
+
+// GetContainerStats godoc
+// @Summary get container stats
+// @Description get container stats
+// @Tags containers
+// @Param containerId path string true "Container ID"
+// @Success 200 {object} apimodel.ApiResponse
+// @Router /v1/containers/{containerId}/stats [get]
+func (h *RequestHandler) GetContainerStats(w http.ResponseWriter, r *http.Request) {
+	containerId := chi.URLParam(r, "containerId")
+	if containerId == "" {
+		apimodel.RespondFail(w, http.StatusBadRequest, "missing container Id", nil)
+		return
+	}
+
+	stats, err := h.serviceHandler.GetContainerStats(containerId)
+	if err != nil {
+		apimodel.RespondFail(w, http.StatusInternalServerError, "retrieve container stats failed: "+err.Error(), nil)
+		return
+	}
+
+	apimodel.RespondSuccess(w, http.StatusOK, "retrieve container stats success", stats)
+}
+
+// ListContainerStats godoc
+// @Summary list container stats
+// @Description list container stats
+// @Tags containers
+// @Success 200 {object} apimodel.ApiResponse
+// @Router /v1/containers/stats [get]
+func (h *RequestHandler) ListContainerStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.serviceHandler.ListContainerStats()
+	if err != nil {
+		apimodel.RespondFail(w, http.StatusInternalServerError, "retrieve container stats failed: "+err.Error(), nil)
+		return
+	}
+
+	apimodel.RespondSuccess(w, http.StatusOK, "retrieve container stats success", stats)
+}
+
+// GetContainerLogPath godoc
+// @Summary get container log path
+// @Description get container log path
+// @Tags containers
+// @Param containerId path string true "Container ID"
+// @Success 200 {object} apimodel.ApiResponse
+// @Router /v1/containers/{containerId}/logpath [get]
+func (h *RequestHandler) GetContainerLogPath(w http.ResponseWriter, r *http.Request) {
+	containerId := chi.URLParam(r, "containerId")
+	if containerId == "" {
+		apimodel.RespondFail(w, http.StatusBadRequest, "missing container Id", nil)
+		return
+	}
+
+	logPath, err := h.serviceHandler.GetContainerLogPath(containerId)
+	if err != nil {
+		apimodel.RespondFail(w, http.StatusInternalServerError, "log path: "+err.Error(), nil)
+		return
+	}
+
+	apimodel.RespondSuccess(w, http.StatusOK, "log path", logPath)
+	return
 }

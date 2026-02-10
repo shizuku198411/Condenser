@@ -1,18 +1,22 @@
 package ilm
 
 import (
+	"condenser/internal/utils"
 	"fmt"
+	"os"
 	"time"
 )
 
 func NewIlmManager(ilmStore *IlmStore) *IlmManager {
 	return &IlmManager{
-		ilmStore: ilmStore,
+		ilmStore:          ilmStore,
+		filesystemHandler: utils.NewFilesystemExecutor(),
 	}
 }
 
 type IlmManager struct {
-	ilmStore *IlmStore
+	ilmStore          *IlmStore
+	filesystemHandler utils.FilesystemHandler
 }
 
 func (m *IlmManager) StoreImage(repository, reference, bundlePath, configPath, rootfsPath string) error {
@@ -113,25 +117,62 @@ func (s *IlmManager) GetImageList() ([]ImageInfo, error) {
 	return imageList, err
 }
 
+func (s *IlmManager) GetImageInfo(repository string, reference string) (ImageInfo, error) {
+	var info ImageInfo
+	err := s.ilmStore.withRLock(func(st *ImageLayerState) error {
+		repo, ok := st.Repositories[repository]
+		if !ok {
+			return fmt.Errorf("%s:%s not found", repository, reference)
+		}
+		refInfo, ok := repo.References[reference]
+		if !ok {
+			return fmt.Errorf("%s:%s not found", repository, reference)
+		}
+		info = ImageInfo{
+			Repository: repository,
+			Reference:  reference,
+			CreatedAt:  refInfo.CreatedAt,
+		}
+		return nil
+	})
+	return info, err
+}
+
 func (s *IlmManager) IsImageExist(imageRepo, imageRef string) bool {
-	var result bool
+	var (
+		found      bool
+		configPath string
+	)
 
 	s.ilmStore.withRLock(func(st *ImageLayerState) error {
 		for repo, refs := range st.Repositories {
 			if repo != imageRepo {
 				continue
 			}
-			for ref, _ := range refs.References {
+			for ref, info := range refs.References {
 				if ref != imageRef {
 					continue
 				}
-				result = true
+				found = true
+				configPath = info.ConfigPath
 				return nil
 			}
 		}
-		result = false
+		found = false
 		return nil
 	})
 
-	return result
+	if !found {
+		return false
+	}
+	if configPath == "" {
+		return false
+	}
+	if _, err := os.Stat(configPath); err != nil {
+		if s.filesystemHandler.IsNotExist(err) {
+			return false
+		}
+		return false
+	}
+	return true
 }

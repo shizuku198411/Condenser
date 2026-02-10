@@ -3,6 +3,7 @@ package monitor
 type ContainerMeta struct {
 	ContainerId   string
 	ContainerName string
+	PodId         string
 	SpiffeId      string
 	Status        string
 	Pid           int

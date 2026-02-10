@@ -61,7 +61,7 @@ func (m *IpamManager) Release(containerId string) error {
 				}
 			}
 		}
-		return fmt.Errorf("allocation not found for containerId=%s", containerId)
+		return nil
 	})
 }
 
