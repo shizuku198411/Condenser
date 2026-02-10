@@ -39,7 +39,6 @@ func NewSwaggerRouter() *chi.Mux {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-
 	// == swagger ==
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
 
@@ -95,10 +94,17 @@ func NewApiRouter() *chi.Mux {
 	// == pods ==
 	r.Get("/v1/pods", podHandler.GetPodList)                      // list pods
 	r.Post("/v1/pods", podHandler.CreatePod)                      // create pod sandbox
+	r.Post("/v1/pods/apply", podHandler.ApplyPodYaml)             // apply pod yaml
 	r.Get("/v1/pods/{podId}", podHandler.GetPodById)              // get pod sandbox detail
 	r.Post("/v1/pods/{podId}/actions/start", podHandler.StartPod) // start pod sandbox
 	r.Post("/v1/pods/{podId}/actions/stop", podHandler.StopPod)   // stop pod sandbox
 	r.Delete("/v1/pods/{podId}", podHandler.RemovePod)            // remove pod sandbox
+
+	// == replicasets ==
+	r.Get("/v1/replicasets", podHandler.GetReplicaSetList)                             // list replicaset
+	r.Get("/v1/replicasets/{replicaSetId}", podHandler.GetReplicaSetById)              // get replicaset detail
+	r.Post("/v1/replicasets/{replicaSetId}/actions/scale", podHandler.ScaleReplicaSet) // scale replicaset
+	r.Delete("/v1/replicasets/{replicaSetId}", podHandler.RemoveReplicaSet)            // remove replicaset
 
 	// == images ==
 	r.Get("/v1/images", imageHandler.GetImageList)      // get image list

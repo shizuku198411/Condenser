@@ -1,6 +1,9 @@
 package pod
 
-import "time"
+import (
+	"condenser/internal/store/psm"
+	"time"
+)
 
 type ServiceCreateModel struct {
 	Name        string
@@ -12,6 +15,7 @@ type ServiceCreateModel struct {
 	UserNS      string
 	Labels      map[string]string
 	Annotations map[string]string
+	Containers  []psm.ContainerTemplateSpec
 }
 
 type PodState struct {

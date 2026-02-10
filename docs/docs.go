@@ -740,6 +740,29 @@ const docTemplate = `{
                 }
             }
         },
+        "/v1/pods/apply": {
+            "post": {
+                "description": "apply kubectl-compatible yaml manifest",
+                "consumes": [
+                    "text/plain"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pods"
+                ],
+                "summary": "apply pod/replicaset manifest",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/v1/pods/{podId}": {
             "get": {
                 "description": "get pod sandbox detail",
@@ -1011,6 +1034,117 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/v1/replicasets": {
+            "get": {
+                "description": "list replica sets",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "replicasets"
+                ],
+                "summary": "list replica sets",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/replicasets/{replicaSetId}": {
+            "get": {
+                "description": "get replica set detail",
+                "tags": [
+                    "replicasets"
+                ],
+                "summary": "get replica set detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ReplicaSet ID",
+                        "name": "replicaSetId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "remove replica set",
+                "tags": [
+                    "replicasets"
+                ],
+                "summary": "remove replica set",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ReplicaSet ID",
+                        "name": "replicaSetId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/replicasets/{replicaSetId}/actions/scale": {
+            "post": {
+                "description": "scale replica set replicas",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "replicasets"
+                ],
+                "summary": "scale replica set",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ReplicaSet ID",
+                        "name": "replicaSetId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Scale Options",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pod.ScaleReplicaSetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ApiResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -1139,6 +1273,47 @@ const docTemplate = `{
                 }
             }
         },
+        "pod.CreatePodContainerRequest": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "env": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "image": {
+                    "type": "string"
+                },
+                "mount": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "network": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tty": {
+                    "type": "boolean"
+                }
+            }
+        },
         "pod.CreatePodRequest": {
             "type": "object",
             "properties": {
@@ -1146,6 +1321,12 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
+                    }
+                },
+                "containers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/pod.CreatePodContainerRequest"
                     }
                 },
                 "ipcNS": {
@@ -1174,6 +1355,14 @@ const docTemplate = `{
                 },
                 "utsNS": {
                     "type": "string"
+                }
+            }
+        },
+        "pod.ScaleReplicaSetRequest": {
+            "type": "object",
+            "properties": {
+                "replicas": {
+                    "type": "integer"
                 }
             }
         },

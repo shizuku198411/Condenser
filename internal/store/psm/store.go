@@ -92,8 +92,10 @@ func (s *PsmStore) loadOrInit() (*PodState, error) {
 	if err != nil {
 		if s.filesystemHandler.IsNotExist(err) {
 			return &PodState{
-				Version: "0.1.0",
-				Pods:    map[string]PodInfo{},
+				Version:      "0.3.0",
+				Pods:         map[string]PodInfo{},
+				PodTemplates: map[string]PodTemplateInfo{},
+				ReplicaSets:  map[string]ReplicaSetInfo{},
 			}, nil
 		}
 		return nil, err
@@ -105,6 +107,12 @@ func (s *PsmStore) loadOrInit() (*PodState, error) {
 	}
 	if st.Pods == nil {
 		st.Pods = map[string]PodInfo{}
+	}
+	if st.PodTemplates == nil {
+		st.PodTemplates = map[string]PodTemplateInfo{}
+	}
+	if st.ReplicaSets == nil {
+		st.ReplicaSets = map[string]ReplicaSetInfo{}
 	}
 	return &st, nil
 }
@@ -138,9 +146,15 @@ func (s *PsmStore) atomicSave(st *PodState) error {
 
 func (s *PsmStore) SetPodState() error {
 	return s.withLock(func(st *PodState) error {
-		st.Version = "0.1.0"
+		st.Version = "0.3.0"
 		if st.Pods == nil {
 			st.Pods = map[string]PodInfo{}
+		}
+		if st.PodTemplates == nil {
+			st.PodTemplates = map[string]PodTemplateInfo{}
+		}
+		if st.ReplicaSets == nil {
+			st.ReplicaSets = map[string]ReplicaSetInfo{}
 		}
 		return nil
 	})

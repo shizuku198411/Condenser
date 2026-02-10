@@ -4,6 +4,11 @@ import "condenser/internal/core/container"
 
 // == service: remove pod sandbox ==
 func (s *PodService) Remove(podId string) (string, error) {
+	podInfo, err := s.psmHandler.GetPodById(podId)
+	if err != nil {
+		return "", err
+	}
+
 	containers, err := s.containerHandler.GetContainersByPodId(podId)
 	if err != nil {
 		return "", err
@@ -30,6 +35,12 @@ func (s *PodService) Remove(podId string) (string, error) {
 	}
 	if err := s.psmHandler.RemovePod(podId); err != nil {
 		return "", err
+	}
+	if podInfo.TemplateId != "" {
+		inUse, err := s.psmHandler.IsTemplateReferenced(podInfo.TemplateId)
+		if err == nil && !inUse {
+			_ = s.psmHandler.RemovePodTemplate(podInfo.TemplateId)
+		}
 	}
 	return podId, nil
 }

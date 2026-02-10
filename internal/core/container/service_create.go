@@ -30,7 +30,11 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	// 1. generate container id and name
 	containerId := utils.NewUlid()[:12]
 	//    if name is not set, generate a random name
-	containerName := createParameter.Name
+	baseName := createParameter.Name
+	containerName := baseName
+	if containerName != "" && createParameter.PodId != "" && !createParameter.IsPodInfra {
+		containerName = s.buildPodContainerName(containerName, createParameter.PodId)
+	}
 	if containerName == "" {
 		containerName, err = s.generateContainerName()
 		if err != nil {
@@ -150,10 +154,20 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	}
 
 	// 11. setup forward rule
-	if err := s.setupForwardRule(containerId, createParameter.Port); err != nil {
+	forwardTargetId := containerId
+	if createParameter.PodId != "" && !s.psmHandler.IsPodOwner(createParameter.PodId) && len(createParameter.Port) > 0 {
+		infra, err := s.findPodInfraContainer(createParameter.PodId)
+		if err != nil {
+			return "", fmt.Errorf("forward rule failed: infra container not found: %w", err)
+		}
+		forwardTargetId = infra.ContainerId
+	}
+	if err := s.setupForwardRule(forwardTargetId, createParameter.Port); err != nil {
 		return "", fmt.Errorf("forward rule failed: %w", err)
 	}
-	rollbackFlag.ForwardRule = true
+	if forwardTargetId == containerId {
+		rollbackFlag.ForwardRule = true
+	}
 
 	// 12. create container
 	if createParameter.PodId == "" || s.psmHandler.IsPodOwner(createParameter.PodId) {
@@ -163,6 +177,25 @@ func (s *ContainerService) Create(createParameter ServiceCreateModel) (id string
 	} else {
 		if err := s.joinContainer(containerId, createParameter.Tty, createParameter.PodId); err != nil {
 			return "", fmt.Errorf("create container failed: %w", err)
+		}
+	}
+
+	if createParameter.PodId != "" && !createParameter.IsPodInfra {
+		templateName := baseName
+		if templateName == "" {
+			templateName = containerName
+		}
+		if err := s.psmHandler.AddContainerToPodTemplate(createParameter.PodId, psm.ContainerTemplateSpec{
+			Name:    templateName,
+			Image:   createParameter.Image,
+			Command: createParameter.Command,
+			Port:    createParameter.Port,
+			Mount:   createParameter.Mount,
+			Env:     createParameter.Env,
+			Network: createParameter.Network,
+			Tty:     createParameter.Tty,
+		}); err != nil {
+			return "", err
 		}
 	}
 
@@ -749,6 +782,17 @@ func (s *ContainerService) buildCommand(entrypoint, cmd []string) string {
 		quoted = append(quoted, shellescape.Quote(a))
 	}
 	return strings.Join(quoted, " ")
+}
+
+func (s *ContainerService) buildPodContainerName(baseName, podId string) string {
+	if podId == "" {
+		return baseName
+	}
+	suffix := podId
+	if len(suffix) > 8 {
+		suffix = suffix[len(suffix)-8:]
+	}
+	return baseName + "-" + suffix
 }
 
 func (s *ContainerService) setupForwardRule(containerId string, ports []string) error {

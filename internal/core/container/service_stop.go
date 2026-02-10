@@ -2,7 +2,9 @@ package container
 
 import (
 	"condenser/internal/runtime"
+	"condenser/internal/utils"
 	"fmt"
+	"strings"
 )
 
 // == service: stop ==
@@ -26,6 +28,9 @@ func (s *ContainerService) Stop(stopParameter ServiceStopModel) (string, error) 
 		// stop container
 		if err := s.stopContainer(containerId); err != nil {
 			return "", fmt.Errorf("stop failed: %w", err)
+		}
+		if containerInfo.PodId != "" && !strings.HasPrefix(containerInfo.ContainerName, utils.PodInfraContainerNamePrefix) {
+			_ = s.psmHandler.UpdatePod(containerInfo.PodId, "degraded")
 		}
 	default:
 		return "", fmt.Errorf("stop operation not allowed to current container status: %s", containerInfo.State)

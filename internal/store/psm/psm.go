@@ -15,10 +15,11 @@ type PsmManager struct {
 	psmStore *PsmStore
 }
 
-func (m *PsmManager) StorePod(podId, name, namespace, uid, state, networkNS, ipcNS, utsNS, userNS string, labels, annotations map[string]string) error {
+func (m *PsmManager) StorePod(podId, templateId, name, namespace, uid, state, networkNS, ipcNS, utsNS, userNS string, labels, annotations map[string]string) error {
 	return m.psmStore.withLock(func(st *PodState) error {
 		st.Pods[podId] = PodInfo{
 			PodId:       podId,
+			TemplateId:  templateId,
 			Name:        name,
 			Namespace:   namespace,
 			UID:         uid,
@@ -31,6 +32,156 @@ func (m *PsmManager) StorePod(podId, name, namespace, uid, state, networkNS, ipc
 			Annotations: annotations,
 			CreatedAt:   time.Now(),
 		}
+		return nil
+	})
+}
+
+func (m *PsmManager) StorePodTemplate(templateId string, spec PodTemplateSpec) error {
+	return m.psmStore.withLock(func(st *PodState) error {
+		st.PodTemplates[templateId] = PodTemplateInfo{
+			TemplateId: templateId,
+			Spec:       spec,
+			CreatedAt:  time.Now(),
+		}
+		return nil
+	})
+}
+
+func (m *PsmManager) GetPodTemplate(templateId string) (PodTemplateInfo, error) {
+	var template PodTemplateInfo
+	err := m.psmStore.withRLock(func(st *PodState) error {
+		t, ok := st.PodTemplates[templateId]
+		if !ok {
+			return fmt.Errorf("podTemplateId=%s not found", templateId)
+		}
+		template = t
+		return nil
+	})
+	return template, err
+}
+
+func (m *PsmManager) GetPodTemplateList() ([]PodTemplateInfo, error) {
+	var templates []PodTemplateInfo
+	err := m.psmStore.withRLock(func(st *PodState) error {
+		for _, t := range st.PodTemplates {
+			templates = append(templates, t)
+		}
+		return nil
+	})
+	return templates, err
+}
+
+func (m *PsmManager) AddContainerToPodTemplate(podId string, spec ContainerTemplateSpec) error {
+	return m.psmStore.withLock(func(st *PodState) error {
+		pod, ok := st.Pods[podId]
+		if !ok {
+			return fmt.Errorf("podId=%s not found", podId)
+		}
+		if pod.TemplateId == "" {
+			return fmt.Errorf("podId=%s has no templateId", podId)
+		}
+		tpl, ok := st.PodTemplates[pod.TemplateId]
+		if !ok {
+			return fmt.Errorf("podTemplateId=%s not found", pod.TemplateId)
+		}
+
+		replaced := false
+		for i, c := range tpl.Spec.Containers {
+			if c.Name == spec.Name && spec.Name != "" {
+				tpl.Spec.Containers[i] = spec
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			tpl.Spec.Containers = append(tpl.Spec.Containers, spec)
+		}
+
+		st.PodTemplates[pod.TemplateId] = tpl
+		return nil
+	})
+}
+
+func (m *PsmManager) RemovePodTemplate(templateId string) error {
+	return m.psmStore.withLock(func(st *PodState) error {
+		if _, ok := st.PodTemplates[templateId]; !ok {
+			return fmt.Errorf("podTemplateId=%s not found", templateId)
+		}
+		delete(st.PodTemplates, templateId)
+		return nil
+	})
+}
+
+func (m *PsmManager) StoreReplicaSet(replicaSetId string, spec ReplicaSetSpec) error {
+	return m.psmStore.withLock(func(st *PodState) error {
+		st.ReplicaSets[replicaSetId] = ReplicaSetInfo{
+			ReplicaSetId: replicaSetId,
+			Spec:         spec,
+			CreatedAt:    time.Now(),
+		}
+		return nil
+	})
+}
+
+func (m *PsmManager) GetReplicaSet(replicaSetId string) (ReplicaSetInfo, error) {
+	var rs ReplicaSetInfo
+	err := m.psmStore.withRLock(func(st *PodState) error {
+		info, ok := st.ReplicaSets[replicaSetId]
+		if !ok {
+			return fmt.Errorf("replicaSetId=%s not found", replicaSetId)
+		}
+		rs = info
+		return nil
+	})
+	return rs, err
+}
+
+func (m *PsmManager) GetReplicaSetList() ([]ReplicaSetInfo, error) {
+	var sets []ReplicaSetInfo
+	err := m.psmStore.withRLock(func(st *PodState) error {
+		for _, rs := range st.ReplicaSets {
+			sets = append(sets, rs)
+		}
+		return nil
+	})
+	return sets, err
+}
+
+func (m *PsmManager) UpdateReplicaSetReplicas(replicaSetId string, replicas int) error {
+	return m.psmStore.withLock(func(st *PodState) error {
+		rs, ok := st.ReplicaSets[replicaSetId]
+		if !ok {
+			return fmt.Errorf("replicaSetId=%s not found", replicaSetId)
+		}
+		if replicas < 0 {
+			return fmt.Errorf("replicas must be >= 0")
+		}
+		rs.Spec.Replicas = replicas
+		st.ReplicaSets[replicaSetId] = rs
+		return nil
+	})
+}
+
+func (m *PsmManager) IsTemplateReferenced(templateId string) (bool, error) {
+	var referenced bool
+	err := m.psmStore.withRLock(func(st *PodState) error {
+		for _, rs := range st.ReplicaSets {
+			if rs.Spec.TemplateId == templateId {
+				referenced = true
+				return nil
+			}
+		}
+		return nil
+	})
+	return referenced, err
+}
+
+func (m *PsmManager) RemoveReplicaSet(replicaSetId string) error {
+	return m.psmStore.withLock(func(st *PodState) error {
+		if _, ok := st.ReplicaSets[replicaSetId]; !ok {
+			return fmt.Errorf("replicaSetId=%s not found", replicaSetId)
+		}
+		delete(st.ReplicaSets, replicaSetId)
 		return nil
 	})
 }
@@ -62,6 +213,18 @@ func (m *PsmManager) UpdatePod(podId string, state string) error {
 			p.StoppedAt = time.Now()
 		}
 
+		st.Pods[podId] = p
+		return nil
+	})
+}
+
+func (m *PsmManager) UpdatePodStoppedByUser(podId string, stopped bool) error {
+	return m.psmStore.withLock(func(st *PodState) error {
+		p, ok := st.Pods[podId]
+		if !ok {
+			return fmt.Errorf("podId=%s not found", podId)
+		}
+		p.StoppedByUser = stopped
 		st.Pods[podId] = p
 		return nil
 	})

@@ -86,12 +86,43 @@ definitions:
       bridge:
         type: string
     type: object
+  pod.CreatePodContainerRequest:
+    properties:
+      command:
+        items:
+          type: string
+        type: array
+      env:
+        items:
+          type: string
+        type: array
+      image:
+        type: string
+      mount:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      network:
+        type: string
+      port:
+        items:
+          type: string
+        type: array
+      tty:
+        type: boolean
+    type: object
   pod.CreatePodRequest:
     properties:
       annotations:
         additionalProperties:
           type: string
         type: object
+      containers:
+        items:
+          $ref: '#/definitions/pod.CreatePodContainerRequest'
+        type: array
       ipcNS:
         type: string
       labels:
@@ -110,6 +141,11 @@ definitions:
         type: string
       utsNS:
         type: string
+    type: object
+  pod.ScaleReplicaSetRequest:
+    properties:
+      replicas:
+        type: integer
     type: object
   policy.AddPolicyRequest:
     properties:
@@ -692,6 +728,21 @@ paths:
       summary: stop pod sandbox
       tags:
       - pods
+  /v1/pods/apply:
+    post:
+      consumes:
+      - text/plain
+      description: apply kubectl-compatible yaml manifest
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: apply pod/replicaset manifest
+      tags:
+      - pods
   /v1/policies:
     get:
       consumes:
@@ -803,4 +854,77 @@ paths:
       summary: revert policy
       tags:
       - Policy
+  /v1/replicasets:
+    get:
+      description: list replica sets
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: list replica sets
+      tags:
+      - replicasets
+  /v1/replicasets/{replicaSetId}:
+    delete:
+      description: remove replica set
+      parameters:
+      - description: ReplicaSet ID
+        in: path
+        name: replicaSetId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: remove replica set
+      tags:
+      - replicasets
+    get:
+      description: get replica set detail
+      parameters:
+      - description: ReplicaSet ID
+        in: path
+        name: replicaSetId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: get replica set detail
+      tags:
+      - replicasets
+  /v1/replicasets/{replicaSetId}/actions/scale:
+    post:
+      consumes:
+      - application/json
+      description: scale replica set replicas
+      parameters:
+      - description: ReplicaSet ID
+        in: path
+        name: replicaSetId
+        required: true
+        type: string
+      - description: Scale Options
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/pod.ScaleReplicaSetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.ApiResponse'
+      summary: scale replica set
+      tags:
+      - replicasets
 swagger: "2.0"
