@@ -272,7 +272,42 @@ func (s *NetworkService) setForwardRules(hostInterface string, bridgeInterface s
 		return err
 	}
 
-	// 2. allow forward: in
+	// 2. dnat for local host traffic from host namespace
+	dnatOutputRuleCmd := []string{
+		"iptables",
+		"-t", "nat",
+		"-A", "OUTPUT",
+		"-m", "addrtype",
+		"--dst-type", "LOCAL",
+		"-p", portParam.Protocol,
+		"--dport", portParam.HostPort,
+		"-j", "DNAT",
+		"--to-destination", containerAddr + ":" + portParam.ContainerPort,
+	}
+	dnatOutputRule := s.commandFactory.Command(dnatOutputRuleCmd[0], dnatOutputRuleCmd[1:]...)
+	if err := dnatOutputRule.Run(); err != nil {
+		return err
+	}
+
+	// 3. dnat for local host traffic from containers
+	dnatBridgeRuleCmd := []string{
+		"iptables",
+		"-t", "nat",
+		"-A", "PREROUTING",
+		"-i", bridgeInterface,
+		"-m", "addrtype",
+		"--dst-type", "LOCAL",
+		"-p", portParam.Protocol,
+		"--dport", portParam.HostPort,
+		"-j", "DNAT",
+		"--to-destination", containerAddr + ":" + portParam.ContainerPort,
+	}
+	dnatBridgeRule := s.commandFactory.Command(dnatBridgeRuleCmd[0], dnatBridgeRuleCmd[1:]...)
+	if err := dnatBridgeRule.Run(); err != nil {
+		return err
+	}
+
+	// 4. allow forward: in
 	forwardInCmd := []string{
 		"iptables",
 		"-A", "FORWARD",
@@ -288,7 +323,25 @@ func (s *NetworkService) setForwardRules(hostInterface string, bridgeInterface s
 		return err
 	}
 
-	// 3. allow forward: out
+	// 5. allow forwarded dnat traffic within same bridge (container -> hostAddr -> container)
+	forwardHairpinCmd := []string{
+		"iptables",
+		"-I", "FORWARD", "1",
+		"-i", bridgeInterface,
+		"-o", bridgeInterface,
+		"-p", portParam.Protocol,
+		"-m", "conntrack",
+		"--ctstate", "DNAT",
+		"--dport", portParam.ContainerPort,
+		"-d", containerAddr,
+		"-j", "ACCEPT",
+	}
+	forwardHairpin := s.commandFactory.Command(forwardHairpinCmd[0], forwardHairpinCmd[1:]...)
+	if err := forwardHairpin.Run(); err != nil {
+		return err
+	}
+
+	// 6. allow forward: out
 	forwardOutCmd := []string{
 		"iptables",
 		"-A", "FORWARD",
@@ -324,7 +377,42 @@ func (s *NetworkService) deleteForwardRules(hostInterface string, bridgeInterfac
 		return err
 	}
 
-	// 2. allow forward: in
+	// 2. dnat for local host traffic from host namespace
+	dnatOutputRuleCmd := []string{
+		"iptables",
+		"-t", "nat",
+		"-D", "OUTPUT",
+		"-m", "addrtype",
+		"--dst-type", "LOCAL",
+		"-p", portParam.Protocol,
+		"--dport", portParam.HostPort,
+		"-j", "DNAT",
+		"--to-destination", containerAddr + ":" + portParam.ContainerPort,
+	}
+	dnatOutputRule := s.commandFactory.Command(dnatOutputRuleCmd[0], dnatOutputRuleCmd[1:]...)
+	if err := dnatOutputRule.Run(); err != nil {
+		return err
+	}
+
+	// 3. dnat for local host traffic from containers
+	dnatBridgeRuleCmd := []string{
+		"iptables",
+		"-t", "nat",
+		"-D", "PREROUTING",
+		"-i", bridgeInterface,
+		"-m", "addrtype",
+		"--dst-type", "LOCAL",
+		"-p", portParam.Protocol,
+		"--dport", portParam.HostPort,
+		"-j", "DNAT",
+		"--to-destination", containerAddr + ":" + portParam.ContainerPort,
+	}
+	dnatBridgeRule := s.commandFactory.Command(dnatBridgeRuleCmd[0], dnatBridgeRuleCmd[1:]...)
+	if err := dnatBridgeRule.Run(); err != nil {
+		return err
+	}
+
+	// 4. allow forward: in
 	forwardInCmd := []string{
 		"iptables",
 		"-D", "FORWARD",
@@ -340,7 +428,25 @@ func (s *NetworkService) deleteForwardRules(hostInterface string, bridgeInterfac
 		return err
 	}
 
-	// 3. allow forward: out
+	// 5. allow forwarded dnat traffic within same bridge (container -> hostAddr -> container)
+	forwardHairpinCmd := []string{
+		"iptables",
+		"-D", "FORWARD",
+		"-i", bridgeInterface,
+		"-o", bridgeInterface,
+		"-p", portParam.Protocol,
+		"-m", "conntrack",
+		"--ctstate", "DNAT",
+		"--dport", portParam.ContainerPort,
+		"-d", containerAddr,
+		"-j", "ACCEPT",
+	}
+	forwardHairpin := s.commandFactory.Command(forwardHairpinCmd[0], forwardHairpinCmd[1:]...)
+	if err := forwardHairpin.Run(); err != nil {
+		return err
+	}
+
+	// 6. allow forward: out
 	forwardOutCmd := []string{
 		"iptables",
 		"-D", "FORWARD",

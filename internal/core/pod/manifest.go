@@ -30,6 +30,7 @@ type manifestMeta struct {
 
 type podManifestSpec struct {
 	Containers []containerManifest `yaml:"containers"`
+	Volumes    []manifestVolume    `yaml:"volumes"`
 }
 
 type podManifest struct {
@@ -58,13 +59,15 @@ type replicaSetManifest struct {
 }
 
 type containerManifest struct {
-	Name    string           `yaml:"name"`
-	Image   string           `yaml:"image"`
-	Command []string         `yaml:"command"`
-	Args    []string         `yaml:"args"`
-	Env     []manifestEnvVar `yaml:"env"`
-	Ports   []manifestPort   `yaml:"ports"`
-	Tty     bool             `yaml:"tty"`
+	Name         string                `yaml:"name"`
+	Image        string                `yaml:"image"`
+	Command      []string              `yaml:"command"`
+	Args         []string              `yaml:"args"`
+	Env          []manifestEnvVar      `yaml:"env"`
+	Ports        []manifestPort        `yaml:"ports"`
+	Mount        []string              `yaml:"mount"`
+	VolumeMounts []manifestVolumeMount `yaml:"volumeMounts"`
+	Tty          bool                  `yaml:"tty"`
 }
 
 type manifestEnvVar struct {
@@ -75,6 +78,21 @@ type manifestEnvVar struct {
 type manifestPort struct {
 	ContainerPort int `yaml:"containerPort"`
 	HostPort      int `yaml:"hostPort"`
+}
+
+type manifestVolume struct {
+	Name     string           `yaml:"name"`
+	HostPath manifestHostPath `yaml:"hostPath"`
+}
+
+type manifestHostPath struct {
+	Path string `yaml:"path"`
+}
+
+type manifestVolumeMount struct {
+	Name      string `yaml:"name"`
+	MountPath string `yaml:"mountPath"`
+	ReadOnly  bool   `yaml:"readOnly"`
 }
 
 func DecodeK8sManifests(body []byte) ([]PodManifest, error) {
@@ -108,7 +126,10 @@ func DecodeK8sManifests(body []byte) ([]PodManifest, error) {
 			if err := yaml.Unmarshal(rawBytes, &pod); err != nil {
 				return nil, err
 			}
-			manifest := buildPodManifest(pod.Metadata, pod.Spec.Containers)
+			manifest, err := buildPodManifest(pod.Metadata, pod.Spec.Containers, pod.Spec.Volumes)
+			if err != nil {
+				return nil, err
+			}
 			manifest.Kind = "Pod"
 			if manifest.Name == "" {
 				return nil, fmt.Errorf("pod name is required")
@@ -123,7 +144,10 @@ func DecodeK8sManifests(body []byte) ([]PodManifest, error) {
 			if meta.Name == "" {
 				meta.Name = rs.Metadata.Name
 			}
-			manifest := buildPodManifest(meta, rs.Spec.Template.Spec.Containers)
+			manifest, err := buildPodManifest(meta, rs.Spec.Template.Spec.Containers, rs.Spec.Template.Spec.Volumes)
+			if err != nil {
+				return nil, err
+			}
 			manifest.Kind = "ReplicaSet"
 			manifest.Replicas = rs.Spec.Replicas
 			if manifest.Replicas == 0 {
@@ -146,10 +170,21 @@ func DecodeK8sManifests(body []byte) ([]PodManifest, error) {
 	return result, nil
 }
 
-func buildPodManifest(meta manifestMeta, containers []containerManifest) PodManifest {
+func buildPodManifest(meta manifestMeta, containers []containerManifest, volumes []manifestVolume) (PodManifest, error) {
 	if meta.Namespace == "" {
 		meta.Namespace = "default"
 	}
+	volumeHostPath := map[string]string{}
+	for _, v := range volumes {
+		if v.Name == "" {
+			continue
+		}
+		if v.HostPath.Path == "" {
+			return PodManifest{}, fmt.Errorf("volume %q: only hostPath volumes are supported", v.Name)
+		}
+		volumeHostPath[v.Name] = v.HostPath.Path
+	}
+
 	specs := make([]psm.ContainerTemplateSpec, 0, len(containers))
 	for _, c := range containers {
 		cmd := c.Command
@@ -172,12 +207,28 @@ func buildPodManifest(meta manifestMeta, containers []containerManifest) PodMani
 				ports = append(ports, fmt.Sprintf("%d:%d", p.HostPort, p.ContainerPort))
 			}
 		}
+		mounts := append([]string{}, c.Mount...)
+		for _, vm := range c.VolumeMounts {
+			if vm.Name == "" || vm.MountPath == "" {
+				continue
+			}
+			hostPath, ok := volumeHostPath[vm.Name]
+			if !ok {
+				return PodManifest{}, fmt.Errorf("container %q: volume %q not found", c.Name, vm.Name)
+			}
+			m := hostPath + ":" + vm.MountPath
+			if vm.ReadOnly {
+				m += ":ro"
+			}
+			mounts = append(mounts, m)
+		}
 		specs = append(specs, psm.ContainerTemplateSpec{
 			Name:    c.Name,
 			Image:   c.Image,
 			Command: cmd,
 			Env:     envs,
 			Port:    ports,
+			Mount:   mounts,
 			Tty:     c.Tty,
 		})
 	}
@@ -187,7 +238,7 @@ func buildPodManifest(meta manifestMeta, containers []containerManifest) PodMani
 		Labels:      meta.Labels,
 		Annotations: meta.Annotations,
 		Containers:  specs,
-	}
+	}, nil
 }
 
 func mergeLabels(base, extra map[string]string) map[string]string {
