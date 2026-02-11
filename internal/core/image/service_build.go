@@ -427,7 +427,7 @@ func (s *ImageService) runCommandInContainer(state *buildState, bridge string, s
 		[]string{"/bin/sh", "-e", runScriptPath},
 		containerId,
 		"",
-		"",
+		filepath.Join(containerDir, "logs", "console.log"),
 		"",
 	); err != nil {
 		return err
@@ -479,8 +479,12 @@ func (s *ImageService) runCommandInContainer(state *buildState, bridge string, s
 		return err
 	}
 	// RUN is executed as the container's init process.
-	if err := waitBuildContainerStopped(csmHandler, containerId, 10*time.Minute); err != nil {
+	info, err := waitBuildContainerStopped(csmHandler, containerId, 10*time.Minute)
+	if err != nil {
 		return err
+	}
+	if info.ExitCode != 0 && info.Message != "process down detected." {
+		return buildRunFailedError(info, containerDir)
 	}
 	_ = removeBuildRunScript(upperDir)
 	if err := runtimeHandler.Delete(runtime.DeleteModel{ContainerId: containerId}); err != nil {
@@ -725,31 +729,92 @@ func writeBuildRunScript(upperDir string, runLine string) (string, error) {
 }
 
 func removeBuildRunScript(mergedDir string) error {
-	hostPath := filepath.Join(mergedDir, "raind-build", "run.sh")
+	runDir := filepath.Join(mergedDir, "raind-build")
+	hostPath := filepath.Join(runDir, "run.sh")
 	if err := os.Remove(hostPath); err != nil && !os.IsNotExist(err) {
 		return err
+	}
+	entries, err := os.ReadDir(runDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if len(entries) == 0 {
+		if err := os.Remove(runDir); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
 	return nil
 }
 
-func waitBuildContainerStopped(csmHandler csm.CsmHandler, containerId string, timeout time.Duration) error {
+func waitBuildContainerStopped(csmHandler csm.CsmHandler, containerId string, timeout time.Duration) (csm.ContainerInfo, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		info, err := csmHandler.GetContainerById(containerId)
 		if err == nil {
 			switch info.State {
 			case "stopped":
-				return nil
+				return info, nil
 			case "running", "created", "creating":
 				time.Sleep(500 * time.Millisecond)
 				continue
 			default:
-				return fmt.Errorf("unexpected container state: %s", info.State)
+				return csm.ContainerInfo{}, fmt.Errorf("unexpected container state: %s", info.State)
 			}
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return fmt.Errorf("timeout waiting for build container to stop: %s", containerId)
+	return csm.ContainerInfo{}, fmt.Errorf("timeout waiting for build container to stop: %s", containerId)
+}
+
+func buildRunFailedError(info csm.ContainerInfo, containerDir string) error {
+	msg := fmt.Sprintf("RUN command failed: exit_code=%d", info.ExitCode)
+	if strings.TrimSpace(info.Reason) != "" {
+		msg += ", reason=" + info.Reason
+	}
+	if strings.TrimSpace(info.Message) != "" {
+		msg += ", message=" + info.Message
+	}
+	if tail := readBuildLogTail(info.LogPath, containerDir); tail != "" {
+		msg += "\n--- build log tail ---\n" + tail
+	}
+	return errors.New(msg)
+}
+
+func readBuildLogTail(logPath string, containerDir string) string {
+	candidates := []string{}
+	if strings.TrimSpace(logPath) != "" {
+		candidates = append(candidates, logPath)
+	}
+	candidates = append(
+		candidates,
+		filepath.Join(containerDir, "logs", "console.log"),
+		filepath.Join(containerDir, "logs", "init.log"),
+	)
+	seen := map[string]struct{}{}
+	for _, p := range candidates {
+		if p == "" {
+			continue
+		}
+		if _, ok := seen[p]; ok {
+			continue
+		}
+		seen[p] = struct{}{}
+		b, err := os.ReadFile(p)
+		if err != nil || len(b) == 0 {
+			continue
+		}
+		if len(b) > 4096 {
+			b = b[len(b)-4096:]
+		}
+		out := strings.TrimSpace(string(b))
+		if out != "" {
+			return out
+		}
+	}
+	return ""
 }
 
 func safeJoin(baseDir string, rel string) (string, error) {
@@ -890,12 +955,12 @@ func applyOverlayUpper(upperDir string, rootfs string) error {
 
 func copyBuildConfig(containerDir, containerId string) error {
 	src := filepath.Join(containerDir, "config.json")
-	dst := filepath.Join("/tmp", "raind-build-config-"+containerId+".json")
 	b, err := os.ReadFile(src)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dst, b, 0o644)
+	debugDst := filepath.Join("/tmp", "raind-build-debug-config.json")
+	return os.WriteFile(debugDst, b, 0o644)
 }
 
 func (s *ImageService) storeBuiltImage(imageRepo, imageRef string, state buildState) error {

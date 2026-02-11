@@ -266,6 +266,7 @@ func (c *ServiceController) deleteJumpRule(chain, proto string, port int) error 
 	_ = cmd.Run()
 	cmd = c.commandFactory.Command(
 		"iptables", "-t", "nat", "-D", "OUTPUT",
+		"-m", "addrtype", "--dst-type", "LOCAL",
 		"-p", proto, "--dport", itoa(port),
 		"-j", chain,
 	)
@@ -284,6 +285,7 @@ func (c *ServiceController) addJumpRule(chain, proto string, port int) error {
 	}
 	cmd = c.commandFactory.Command(
 		"iptables", "-t", "nat", "-A", "OUTPUT",
+		"-m", "addrtype", "--dst-type", "LOCAL",
 		"-p", proto, "--dport", itoa(port),
 		"-j", chain,
 	)
@@ -304,6 +306,19 @@ func (c *ServiceController) addForwardRules(ep svcEndpoint, targetPort int, prot
 	if ep.HostInterface == "" || ep.Bridge == "" {
 		return nil
 	}
+	hairpinCmd := []string{
+		"-I", "FORWARD", "1",
+		"-i", ep.Bridge,
+		"-o", ep.Bridge,
+		"-p", proto,
+		"-m", "conntrack",
+		"--ctstate", "DNAT",
+		"--dport", itoa(targetPort),
+		"-d", ep.Addr,
+		"-j", "ACCEPT",
+	}
+	_ = c.commandFactory.Command("iptables", hairpinCmd...).Run()
+
 	inCmd := []string{
 		"-A", "FORWARD",
 		"-i", ep.HostInterface,
