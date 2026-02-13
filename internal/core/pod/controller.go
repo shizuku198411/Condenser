@@ -88,6 +88,29 @@ func (c *PodController) reconcileOnce() error {
 				}
 			}
 			for _, p := range podList {
+				if p.StoppedByUser {
+					continue
+				}
+				if p.State == "degraded" {
+					infraState, err := c.getPodInfraState(p.PodId)
+					if err != nil {
+						log.Printf("pod controller infra check failed: podId=%s err=%v", p.PodId, err)
+						continue
+					}
+					// If infra is not running, namespace continuity is broken.
+					// Recreate pod from template (infra + members) to avoid stale ns path usage.
+					if infraState != "running" {
+						if err := c.recreatePod(p); err != nil {
+							log.Printf("pod controller recreate failed: podId=%s err=%v", p.PodId, err)
+						}
+						continue
+					}
+					// Infra is running, so only recover member containers.
+					if _, err := c.podHandler.Start(p.PodId); err != nil {
+						log.Printf("pod controller start failed: podId=%s err=%v", p.PodId, err)
+					}
+					continue
+				}
 				if p.State == "stopped" {
 					if _, err := c.podHandler.Start(p.PodId); err != nil {
 						log.Printf("pod controller start failed: podId=%s err=%v", p.PodId, err)
@@ -169,20 +192,31 @@ func (c *PodController) reconcileOnce() error {
 }
 
 func (c *PodController) isPodInfraDown(podId string) (bool, error) {
-	containers, err := c.containerHandler.GetContainersByPodId(podId)
+	state, err := c.getPodInfraState(podId)
 	if err != nil {
 		return false, err
 	}
+	return state != "running", nil
+}
+
+func (c *PodController) getPodInfraState(podId string) (string, error) {
+	containers, err := c.containerHandler.GetContainersByPodId(podId)
+	if err != nil {
+		return "", err
+	}
 	if len(containers) == 0 {
-		return true, nil
+		return "missing", nil
 	}
 	for _, cinfo := range containers {
 		if strings.HasPrefix(cinfo.Name, utils.PodInfraContainerNamePrefix) {
-			return cinfo.State != "running", nil
+			if cinfo.State == "running" {
+				return "running", nil
+			}
+			return "stopped", nil
 		}
 	}
 	// infra missing
-	return true, nil
+	return "missing", nil
 }
 
 func (c *PodController) recreatePod(podInfo psm.PodInfo) error {
